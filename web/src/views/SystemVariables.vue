@@ -367,7 +367,7 @@ const handleTest = (row: any) => {
   testVariable({ id: row.id })
       .then((res: any) => {
         if (res.code === 0) {
-          message.success(res.data?.result || t('systemVariable.test.success'));
+          message.success(res.data || t('systemVariable.test.success'));
         }
       })
       .catch((err: any) => {
