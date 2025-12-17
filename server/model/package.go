@@ -17,14 +17,13 @@ import (
 	"time"
 
 	"github.com/BernardSimon/etl-go/server/config"
-
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm/schema"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm/logger"
 
 	"github.com/google/uuid"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
