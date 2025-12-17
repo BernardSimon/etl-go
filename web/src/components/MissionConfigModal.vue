@@ -540,14 +540,11 @@
                           <file-text-outlined style="margin-right: 8px;" />
                           {{ item.name }}
                         </div>
-                        <div class="file-meta">
-                          <span class="file-id">ID: {{ item.id }}</span>
-                          <span class="file-size" v-if="item.size">
-                            ({{ formatFileSize(item.size) }})
-                          </span>
+                        <div class="file-id-small">
+                          ID: {{ item.id }}
                         </div>
                       </div>
-                      <div class="file-actions">
+                      <div class="file-actions-vertical">
                         <a-button
                             type="link"
                             size="small"
@@ -555,7 +552,6 @@
                             :title="t('missionConfig.fileUpload.copyTooltip')"
                         >
                           <copy-outlined />
-                          {{ t('missionConfig.fileUpload.copyButton') }}
                         </a-button>
                         <a-button
                             type="link"
@@ -570,6 +566,7 @@
                     </div>
                   </a-list-item>
                 </template>
+
               </a-list>
             </div>
           </div>
@@ -1190,12 +1187,12 @@ const formatFileSize = (bytes: number): string => {
 .file-list-item:last-child {
   border-bottom: none;
 }
-
 .file-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
+  gap: 8px;
 }
 
 .file-info {
@@ -1209,32 +1206,23 @@ const formatFileSize = (bytes: number): string => {
   display: flex;
   align-items: center;
   color: #1890ff;
+  word-break: break-all;
 }
 
-.file-meta {
-  display: flex;
-  gap: 12px;
+.file-id-small {
   font-size: 12px;
-  color: #666;
+  color: #999;
+  word-break: break-all;
+  line-height: 1.4;
 }
 
-.file-actions {
+.file-actions-vertical {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-@media (max-width: 480px) {
-  .file-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .file-actions {
-    align-self: flex-end;
-  }
-}
 
 /* ProcessorSection styles */
 .processor-item {
