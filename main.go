@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -102,7 +103,7 @@ func startService(startWeb bool) {
 				zap.L().Fatal(fmt.Sprintf("Failed To Start Web Server"), zap.Error(err), zap.String("service", "system"), zap.String("name", config.Ip))
 			}
 		}()
-		zap.L().Info(fmt.Sprintf("Web Server Started At %s", config.Config.ServerUrl), zap.String("service", "system"), zap.String("name", config.Ip))
+		zap.L().Info(fmt.Sprintf("Web Server Started At %s", config.Config.WebUrl), zap.String("service", "system"), zap.String("name", config.Ip))
 		// 尝试打开前端网页
 		openBrowser("http://" + config.Config.WebUrl)
 	}
@@ -152,7 +153,8 @@ func openBrowser(url string) {
 	case "linux":
 		err = exec.Command("xdg-open", url).Start()
 	case "windows":
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		winUrl := strings.Replace(url, "0.0.0.0", "127.0.0.1", -1)
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", winUrl).Start()
 	case "darwin":
 		err = exec.Command("open", url).Start()
 	default:
