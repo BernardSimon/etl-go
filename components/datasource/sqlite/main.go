@@ -32,7 +32,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 
 func (d *DataSource) Init(config map[string]string) error {
 	var err error
-	d.db, err = sql.Open("sqlite3", config["file_path"])
+	d.db, err = sql.Open("sqlite", config["file_path"])
 	if err != nil {
 		return err
 	}
