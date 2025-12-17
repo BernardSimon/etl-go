@@ -56,7 +56,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 
 func (d *DataSource) Init(config map[string]string) error {
 	var err error
-	d.db, err = sql.Open("sql", config["user"]+":"+config["password"]+"@tcp("+config["host"]+":"+config["port"]+")/"+config["database"])
+	d.db, err = sql.Open("mysql", config["user"]+":"+config["password"]+"@tcp("+config["host"]+":"+config["port"]+")/"+config["database"])
 	if err != nil {
 		return err
 	}
