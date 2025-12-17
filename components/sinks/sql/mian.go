@@ -55,6 +55,24 @@ func SinkCreatorPostgre() (string, sink.Sink, *string, []params.Params) {
 	}
 }
 
+var sqliteName = "sqlite"
+var sqliteDatasourceName = "sqlite"
+
+func SetCustomNameSqlite(customName string, customDatasourceName string) {
+	sqliteName = customName
+	sqliteDatasourceName = customDatasourceName
+}
+func SinkCreatorSqlite() (string, sink.Sink, *string, []params.Params) {
+	return sqliteName, &Sink{}, &sqliteDatasourceName, []params.Params{
+		{
+			Key:          "table",
+			Required:     true,
+			DefaultValue: "",
+			Description:  "sql table name",
+		},
+	}
+}
+
 // Open 负责解析配置并初始化数据库连接设置
 func (s *Sink) Open(config map[string]string, columnMapping map[string]string, dataSource *datasource.Datasource) error {
 	// 处理 column_mapping

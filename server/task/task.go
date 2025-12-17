@@ -266,6 +266,10 @@ func RunTask(mission model.Task, runBy string) (err error) {
 			if err != nil {
 				return errors.New("数据源类型未找到")
 			}
+			_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+			if err != nil {
+				return err
+			}
 			err = dsStore.Handle.Init(dataSourceDataConfig)
 			if err != nil {
 				return err
@@ -307,6 +311,10 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		if err != nil {
 			return errors.New("数据源类型未找到")
 		}
+		_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+		if err != nil {
+			return err
+		}
 		err = dsStore.Handle.Init(dataSourceDataConfig)
 		if err != nil {
 			return err
@@ -344,6 +352,10 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		dataSourceStore, err := factory.CreateDataSource(dsName)
 		if err != nil {
 			return errors.New("数据源类型未找到")
+		}
+		_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+		if err != nil {
+			return err
 		}
 		err = dataSourceStore.Handle.Init(dataSourceDataConfig)
 		if err != nil {
@@ -406,6 +418,10 @@ func RunTask(mission model.Task, runBy string) (err error) {
 			dsStore, err := factory.CreateDataSource(dsName)
 			if err != nil {
 				return errors.New("数据源类型未找到")
+			}
+			_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+			if err != nil {
+				return err
 			}
 			err = dsStore.Handle.Init(dataSourceDataConfig)
 			if err != nil {
@@ -473,6 +489,10 @@ func GetValueByName(name string) (string, error) {
 		dsStore, err := factory.CreateDataSource(dsName)
 		if err != nil {
 			return "", errors.New("variable data source type does not exist")
+		}
+		_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+		if err != nil {
+			return "", err
 		}
 		err = dsStore.Handle.Init(dataSourceDataConfig)
 		if err != nil {

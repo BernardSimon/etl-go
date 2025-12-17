@@ -48,6 +48,24 @@ func VariableCreatorPostgre() (string, variable.Variable, *string, []params.Para
 		},
 	}
 }
+
+var sqliteName = "sqlite"
+var sqliteDatasourceName = "sqlite"
+
+func SetCustomNameSqlite(customName string, datasourceName string) {
+	sqliteName = customName
+	sqliteDatasourceName = datasourceName
+}
+func VariableCreatorSqlite() (string, variable.Variable, *string, []params.Params) {
+	return sqliteName, &Variable{}, &sqliteDatasourceName, []params.Params{
+		{
+			Key:          "query",
+			Required:     true,
+			DefaultValue: "",
+		},
+	}
+}
+
 func (s *Variable) Get(config map[string]string, datasource *datasource.Datasource) (string, error) {
 	query, exist := config["query"]
 	if !exist {

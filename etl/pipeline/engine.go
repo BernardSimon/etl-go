@@ -105,7 +105,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	var fileIds []string
 	// 处理保留config参数
 	var fileId string
-	fileId, err = handleInternalConfig(beforeExecuteConfig)
+	fileId, err = HandleInternalConfig(beforeExecuteConfig)
 	if err != nil {
 		zap.L().Error("Failed to handle internal config", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 		return fmt.Errorf("pipeline: failed to handle internal config: %w", err)
@@ -113,7 +113,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	if fileId != "" {
 		fileIds = append(fileIds, fileId)
 	}
-	fileId, err = handleInternalConfig(afterExecuteConfig)
+	fileId, err = HandleInternalConfig(afterExecuteConfig)
 	if err != nil {
 		zap.L().Error("Failed to handle internal config", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 		return fmt.Errorf("pipeline: failed to handle internal config: %w", err)
@@ -121,7 +121,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	if fileId != "" {
 		fileIds = append(fileIds, fileId)
 	}
-	fileId, err = handleInternalConfig(&sourceConfig)
+	fileId, err = HandleInternalConfig(&sourceConfig)
 	if err != nil {
 		zap.L().Error("Failed to handle internal config", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 		return fmt.Errorf("pipeline: failed to handle internal config: %w", err)
@@ -129,7 +129,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	if fileId != "" {
 		fileIds = append(fileIds, fileId)
 	}
-	fileId, err = handleInternalConfig(&sinkConfig)
+	fileId, err = HandleInternalConfig(&sinkConfig)
 	if err != nil {
 		zap.L().Error("Failed to handle internal config", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 		return fmt.Errorf("pipeline: failed to handle internal config: %w", err)
@@ -138,7 +138,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 		fileIds = append(fileIds, fileId)
 	}
 	for i := range processorConfigs {
-		fileId, err = handleInternalConfig(&processorConfigs[i].Params)
+		fileId, err = HandleInternalConfig(&processorConfigs[i].Params)
 		if err != nil {
 			zap.L().Error("Failed to handle internal config", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 			return fmt.Errorf("pipeline: failed to handle internal config: %w", err)
@@ -393,7 +393,7 @@ func (e *Engine) flush(batch []record.Record) error {
 	return e.sink.Write(e.id, batch)
 }
 
-func handleInternalConfig(config *map[string]string) (string, error) {
+func HandleInternalConfig(config *map[string]string) (string, error) {
 	if config == nil {
 		return "", nil
 	}

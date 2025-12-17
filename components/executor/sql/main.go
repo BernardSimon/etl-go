@@ -25,6 +25,14 @@ func SetCustomNamePostgresql(name string, datasourceName string) {
 	postgreDatasourceName = datasourceName
 }
 
+var sqliteName = "sqlite"
+var sqliteDatasourceName = "sqlite"
+
+func SetCustomNameSqlite(name string, datasourceName string) {
+	sqliteName = name
+	sqliteDatasourceName = datasourceName
+}
+
 type Executor struct {
 	db         *sql.DB
 	results    sql.Result
@@ -43,6 +51,16 @@ func ExecutorCreatorMysql() (string, executor.Executor, *string, []params.Params
 }
 func ExecutorCreatorPostgre() (string, executor.Executor, *string, []params.Params) {
 	return postgreName, &Executor{}, &postgreDatasourceName, []params.Params{
+		{
+			Key:          "sql",
+			Required:     true,
+			DefaultValue: "",
+			Description:  "sql query",
+		},
+	}
+}
+func ExecutorCreatorSqlite() (string, executor.Executor, *string, []params.Params) {
+	return sqliteName, &Executor{}, &sqliteDatasourceName, []params.Params{
 		{
 			Key:          "sql",
 			Required:     true,

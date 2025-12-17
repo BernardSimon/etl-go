@@ -60,6 +60,26 @@ func SourceCreatorPostgre() (string, source.Source, *string, []params.Params) {
 	return postgresqlName, &Source{}, &postgresqlDatasourceName, paramList
 }
 
+var sqliteName = "sqlite"
+var sqliteDatasourceName = "sqlite"
+
+func SetCustomNameSqlite(customName string, customDatasourceName string) {
+	sqliteName = customName
+	sqliteDatasourceName = customDatasourceName
+}
+func SourceCreatorSqlite() (string, source.Source, *string, []params.Params) {
+	paramList := []params.Params{
+		{
+			Key:          "query",
+			DefaultValue: "",
+			Required:     true,
+			Description:  "",
+		},
+	}
+
+	return sqliteName, &Source{}, &sqliteDatasourceName, paramList
+}
+
 func (s *Source) Open(config map[string]string, dataSource *datasource.Datasource) error {
 	s.datasource = dataSource
 	// 'query' 是必需配置。
