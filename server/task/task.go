@@ -249,14 +249,11 @@ func RunTask(mission model.Task, runBy string) (err error) {
 				return errors.New("数据源未指定")
 			}
 			var dataSourceData model.DataSource
-			err = model.DB.Where("`name` = ?", mission.Data.BeforeExecute.DataSource).Find(&dataSourceData).Error
+			err = model.DB.Where("`id` = ?", mission.Data.BeforeExecute.DataSource).First(&dataSourceData).Error
 			if err != nil {
-				return err
+				return errors.New("数据源不存在")
 			}
-			if dataSourceData.ID == "" {
-				err = errors.New("数据源不存在")
-				return err
-			}
+
 			var dataSourceDataConfig = make(map[string]string)
 			for _, param := range dataSourceData.Data {
 				dataSourceDataConfig[param.Key] = param.Value
@@ -293,14 +290,11 @@ func RunTask(mission model.Task, runBy string) (err error) {
 			return errors.New("数据源未指定")
 		}
 		var dataSourceData model.DataSource
-		err = model.DB.Where("`name` = ?", mission.Data.Source.DataSource).Find(&dataSourceData).Error
+		err = model.DB.Where("`id` = ?", mission.Data.Source.DataSource).First(&dataSourceData).Error
 		if err != nil {
-			return err
+			return errors.New("数据源不存在")
 		}
-		if dataSourceData.ID == "" {
-			err = errors.New("数据源不存在")
-			return err
-		}
+
 		var dataSourceDataConfig = make(map[string]string)
 		for _, param := range dataSourceData.Data {
 			dataSourceDataConfig[param.Key] = param.Value
@@ -335,13 +329,9 @@ func RunTask(mission model.Task, runBy string) (err error) {
 			return errors.New("数据源未指定")
 		}
 		var dataSourceData model.DataSource
-		err = model.DB.Where("`name` = ?", mission.Data.Sinks.DataSource).Find(&dataSourceData).Error
+		err = model.DB.Where("`id` = ?", mission.Data.Sinks.DataSource).First(&dataSourceData).Error
 		if err != nil {
-			return err
-		}
-		if dataSourceData.ID == "" {
-			err = errors.New("数据源不存在")
-			return err
+			return errors.New("数据源不存在")
 		}
 		var dataSourceDataConfig = make(map[string]string)
 		for _, param := range dataSourceData.Data {
@@ -400,13 +390,11 @@ func RunTask(mission model.Task, runBy string) (err error) {
 				return errors.New("数据源未指定")
 			}
 			var dataSourceData model.DataSource
-			err = model.DB.Where("`name` = ?", mission.Data.AfterExecute.DataSource).Find(&dataSourceData).Error
+			err = model.DB.Where("`id` = ?", mission.Data.AfterExecute.DataSource).First(&dataSourceData).Error
 			if err != nil {
-				return err
+				return errors.New("数据源不存在")
 			}
-			if dataSourceData.ID == "" {
-				err = errors.New("数据源不存在")
-			}
+
 			var dataSourceDataConfig = make(map[string]string)
 			for _, param := range dataSourceData.Data {
 				dataSourceDataConfig[param.Key] = param.Value
