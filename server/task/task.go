@@ -132,8 +132,10 @@ func middleware(missionID string, runBy string) {
 		if err != nil {
 			//记录错误
 			mission.ErrMsg = err.Error()
-			cancelMission(&mission, 2)
-			zap.L().Error(fmt.Sprintf("任务 %s 执行失败,已自动暂停", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
+			if runBy == "system" {
+				cancelMission(&mission, 2)
+				zap.L().Error(fmt.Sprintf("任务 %s 执行失败,已自动暂停", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
+			}
 		} else {
 			mission.LastSuccessTime = &runtime
 			mission.ErrMsg = "Success"
