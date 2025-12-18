@@ -16,7 +16,6 @@ type configModel struct {
 	Password  string `yaml:"password"`
 	JwtSecret string `yaml:"jwtSecret"`
 	AesKey    string `yaml:"aesKey"`
-	Language  string `yaml:"language"`
 	InitDb    bool   `yaml:"initDb"`
 	LogLevel  string `yaml:"logLevel"` // dev or prod
 	ServerUrl string `yaml:"serverUrl"`

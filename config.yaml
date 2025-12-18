@@ -2,7 +2,6 @@ username: admin
 password: password123
 jwtSecret: 41a489117e6f39fbd6f8dbf6d2a0b41f6c6e584d1fa2481d33b2c967a7426893
 aesKey: 38d381d2e4acb7c9ea7b1a5c7361afe4b0c30e9f50c6d8d2bcf26fef0b5ecb23
-language: zh-CN
 initDb: false
 logLevel: dev
 serverUrl: localhost:8080

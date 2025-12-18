@@ -19,14 +19,14 @@ etl-go是一个现代化、高性能、易于使用的开源ETL（Extract, Trans
 etl-go采用模块化设计，主要包含以下核心组件：
 
 ### 核心模块 (etl/core)
-- [datasource](file:///Users/szy/Desktop/code/etl-go/components/sinks/sql/mian.go#L33-L33): 数据源抽象层
-- [source](file:///Users/szy/Desktop/code/etl-go/etl/pipeline/engine.go#L49-L49): 数据提取组件
-- [processor](file:///Users/szy/Desktop/code/etl-go/web/src/types/mission.ts#L91-L91): 数据处理组件
-- [sink](file:///Users/szy/Desktop/code/etl-go/etl/pipeline/engine.go#L52-L52): 数据加载组件
-- [executor](file:///Users/szy/Desktop/code/etl-go/web/src/types/mission.ts#L88-L88): 执行器组件
+- `datasource`: 数据源抽象层
+- `source`: 数据提取组件
+- `processor`: 数据处理组件
+- `sink`: 数据加载组件
+- `executor`: 执行器组件
 - `variable`: 变量管理组件
-- [record](file:///Users/szy/Desktop/code/etl-go/web/src/components/MissionConfigModal.vue#L603-L603): 数据记录模型
-- [params](file:///Users/szy/Desktop/code/etl-go/web/src/types/mission.ts#L29-L29): 参数定义模型
+- `record`: 数据记录模型
+- `params`: 参数定义模型
 
 ### 工厂模式 (etl/factory)
 统一的组件注册和创建机制，支持动态加载各类ETL组件。
@@ -58,7 +58,7 @@ etl-go采用模块化设计，主要包含以下核心组件：
 - SQL表（MySQL、PostgreSQL、SQLite）
 - CSV文件
 - JSON文件
-- Doris数据库
+- Doris快速输出(stream_load)
 
 ### 执行器 (Executor)
 - SQL执行（MySQL、PostgreSQL、SQLite）
@@ -93,7 +93,6 @@ username: admin                    # 管理员用户名
 password: password123             # 管理员密码
 jwtSecret: <your-jwt-secret>      # JWT密钥
 aesKey: <your-aes-key>            # AES加密密钥
-language: zh-CN                   # 默认语言
 initDb: false                     # 是否初始化数据库
 logLevel: dev                     # 日志级别 (dev|prod)
 serverUrl: localhost:8080         # API服务地址
@@ -124,7 +123,7 @@ etl-go提供了直观的Web管理界面，包括：
 ### 2. 创建ETL任务
 配置任务流程：
 ```
-Source (SQL查询) → Processor (数据转换) → Sink (目标表)
+Executor (SQL执行) →Source (SQL查询) → Processor (数据转换) → Sink (目标表) → Executor (SQL执行)
 ```
 
 ### 3. 设置调度
@@ -142,9 +141,9 @@ Source (SQL查询) → Processor (数据转换) → Sink (目标表)
 
 ## 🛠️ 开发指南
 
-### 自定义组件开发
-
-
+```
+见官网-文档-开发指南
+```
 
 ## 🤝 贡献
 
