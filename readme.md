@@ -155,4 +155,4 @@ Executor (SQL执行) →Source (SQL查询) → Processor (数据转换) → Sink
 
 ## 🙏 致谢
 
-感谢所有为etl-go贡献代码和反馈的开发者们！
+本项目基于[Go-Pocket-Etl]("https://github.com/changhe626/go-pocket-etl")开发，感谢其作者Changhe626提供的ETL管道代码。
