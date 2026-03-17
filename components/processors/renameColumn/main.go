@@ -3,6 +3,7 @@ package renameColumn
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/params"
 	"github.com/BernardSimon/etl-go/etl/core/procrssor"
@@ -42,7 +43,6 @@ func (p *Processor) Open(config map[string]string) error {
 		return fmt.Errorf("renameColumn processor: config is missing required key 'mapping'")
 	}
 
-	// YAML 解析器会将 map 解析为 map[interface{}]interface{}，这里需要进行类型转换。
 	var mapping map[string]string
 	err := json.Unmarshal([]byte(mappingVal), &mapping)
 	if err != nil {
@@ -53,7 +53,11 @@ func (p *Processor) Open(config map[string]string) error {
 		return fmt.Errorf("renameColumn processor: 'mapping' cannot be empty")
 	}
 
-	p.mapping = mapping
+	cleanedMapping := make(map[string]string)
+	for k, v := range mapping {
+		cleanedMapping[strings.TrimSpace(k)] = strings.TrimSpace(v)
+	}
+	p.mapping = cleanedMapping
 
 	return nil
 }
@@ -68,12 +72,16 @@ func (p *Processor) Open(config map[string]string) error {
 // 取决于 Go 语言不确定的 map 迭代顺序。这可能导致不可预测的数据丢失。
 //
 // **强烈建议**：确保配置的 [mapping](file:///Users/szy/Desktop/code/etl-go/components/processors/renameColumn/main.go#L19-L19) 中，新列名不会与任何未被重命名的现有列名冲突。
+// ... existing code ...
 func (p *Processor) Process(r record.Record) (record.Record, error) {
 	newRecord := make(record.Record, len(r))
 
 	for oldKey, value := range r {
+		// 移除 BOM 字符 (U+FEFF) 和其他空白字符
+		cleanOldKey := strings.TrimLeft(strings.TrimSpace(oldKey), "\uFEFF")
+
 		// 检查这个 key 是否在我们的重命名映射中。
-		if newKey, ok := p.mapping[oldKey]; ok {
+		if newKey, ok := p.mapping[cleanOldKey]; ok {
 			// 如果是，使用新的 key。
 			newRecord[newKey] = value
 		} else {
@@ -85,16 +93,27 @@ func (p *Processor) Process(r record.Record) (record.Record, error) {
 	return newRecord, nil
 }
 
+// ... existing code ...
+
 // Close 是一个无操作（no-op）方法，因为 renameColumn 处理器是无状态的，不需要在处理结束后清理任何资源。
 func (p *Processor) Close() error {
 	return nil
 }
 
+// ... existing code ...
 func (p *Processor) HandleColumns(columns *map[string]string) {
-	for k := range *columns {
-		if newKey, ok := p.mapping[k]; ok {
-			(*columns)[newKey] = newKey
-			delete(*columns, k)
+	var newColumns = make(map[string]string)
+	mapping := p.mapping
+	for k, _ := range *columns {
+		// 移除 BOM 字符 (U+FEFF) 和其他空白字符
+		cleanKey := strings.TrimLeft(strings.TrimSpace(k), "\uFEFF")
+		if newKey, ok := mapping[cleanKey]; ok {
+			newColumns[newKey] = newKey
+		} else {
+			newColumns[k] = k
 		}
 	}
+	*columns = newColumns
 }
+
+// ... existing code ...

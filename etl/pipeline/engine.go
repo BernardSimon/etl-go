@@ -205,12 +205,13 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 
 	for i, p := range e.processors {
 		zap.L().Info("正在打开处理器 (Processor) #"+strconv.Itoa(i+1)+" ("+processorConfigs[i].Type+")...", zap.String("service", "etl"), zap.String("name", id))
-		p.HandleColumns(&column)
 		if err := p.Open(processorConfigs[i].Params); err != nil {
 			zap.L().Error("处理器打开失败", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 			return fmt.Errorf("pipeline: failed to open processor #%d (%s): %w", i+1, processorConfigs[i].Type, err)
 		}
+		p.HandleColumns(&column)
 	}
+
 	zap.L().Info("正在打开数据汇 (Sink)...", zap.String("service", "etl"), zap.String("name", id))
 	if err := e.sink.Open(sinkConfig, column, e.sinkDatasource); err != nil {
 		zap.L().Error("数据汇打开失败", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
