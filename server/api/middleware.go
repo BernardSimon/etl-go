@@ -106,7 +106,7 @@ func RequestResponseMiddleware(c *gin.Context) {
 		c.JSON(400, response)
 	case 3:
 		zap.L().Warn("request auth error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
-		c.JSON(400, response)
+		c.JSON(401, response)
 	default:
 		zap.L().Error("unknown request error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
 		c.JSON(500, response)

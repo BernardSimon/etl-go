@@ -461,3 +461,9 @@ $RECYCLE.BIN/
 /bin/
 /web/pnpm-lock.yaml
 
+# other
+.claude/
+.idea/
+*.yaml
+go.sum
+agent.md

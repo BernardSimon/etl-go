@@ -5,5 +5,5 @@ aesKey: 38d381d2e4acb7c9ea7b1a5c7361afe4b0c30e9f50c6d8d2bcf26fef0b5ecb23
 initDb: false
 logLevel: dev
 serverUrl: localhost:8080
-runWeb: false
+runWeb: true
 webUrl: localhost:8081

@@ -9,6 +9,7 @@ import (
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/params"
 	"github.com/BernardSimon/etl-go/etl/core/record"
+	"github.com/BernardSimon/etl-go/etl/core/security"
 	"github.com/BernardSimon/etl-go/etl/core/source"
 )
 
@@ -86,6 +87,11 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 	query, ok := config["query"]
 	if !ok || query == "" {
 		return fmt.Errorf("sql source: config is missing or has invalid 'query'")
+	}
+
+	// Validate that the query is a SELECT statement
+	if err := security.ValidateSourceSQL(query); err != nil {
+		return fmt.Errorf("sql source: %w", err)
 	}
 
 	var err error

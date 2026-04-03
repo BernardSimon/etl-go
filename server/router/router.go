@@ -14,7 +14,10 @@ func Register(engine *gin.Engine) {
 	fileRouter.StaticFS("/", http.Dir("./file"))
 	admin := engine.Group("/etlApi")
 	admin.Use(api.RequestResponseMiddleware)
-	admin.POST("/login", AdminAPI(api.Login, true))
+	admin.POST("/login", func(c *gin.Context) {
+		loginFn := api.LoginWithRateLimit(c)
+		AdminAPI(loginFn, true)(c)
+	})
 	admin.Use(api.AuthMiddleware)
 	admin.POST("/newDataSource", AdminAPI(api.NewDataSource, true))
 	admin.POST("/getDataSourceTypeList", AdminAPI(api.GetDataSourceTypeList))

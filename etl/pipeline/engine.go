@@ -404,7 +404,7 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 		case "file_id":
 			filePath, err := file.GetFilePath(v)
 			if err != nil {
-				return "", fmt.Errorf("file_id config is invalid: %w", k)
+				return "", fmt.Errorf("file_id config is invalid for key %s: %w", k, err)
 			}
 			(*config)["file_path"] = filePath
 			continue
@@ -412,13 +412,13 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 		case "file_ids":
 			fileIds := strings.Split(v, ",")
 			if len(fileIds) == 0 {
-				return "", fmt.Errorf("file_ids config is invalid: %w", k)
+				return "", fmt.Errorf("file_ids config is invalid for key %s", k)
 			}
 			filePaths := make([]string, len(fileIds))
 			for i, fileId := range fileIds {
 				filePath, err := file.GetFilePath(fileId)
 				if err != nil {
-					return "", fmt.Errorf("file_ids config is invalid: %w", k)
+					return "", fmt.Errorf("file_ids config is invalid for key %s: %w", k, err)
 				}
 				filePaths[i] = filePath
 			}
@@ -431,7 +431,7 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 			}
 			id, filePath, err := file.CreateOutputFile(v, fileExt)
 			if err != nil {
-				return "", fmt.Errorf("file_name config is invalid: %w", k)
+				return "", fmt.Errorf("file_name config is invalid for key %s: %w", k, err)
 			}
 			(*config)["file_path"] = filePath
 			fileId = id

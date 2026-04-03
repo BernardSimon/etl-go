@@ -7,6 +7,7 @@ import (
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/executor"
 	"github.com/BernardSimon/etl-go/etl/core/params"
+	"github.com/BernardSimon/etl-go/etl/core/security"
 )
 
 var mysqlName = "mysql"
@@ -74,6 +75,11 @@ func (s *Executor) Open(config map[string]string, datasource *datasource.Datasou
 	query, ok := config["sql"]
 	if !ok || query == "" {
 		return fmt.Errorf("sql executor: config is missing or has invalid 'sql'")
+	}
+	// Validate SQL for dangerous statements
+	allowDangerous := config["allow_dangerous"] == "true"
+	if err := security.ValidateExecutorSQL(query, allowDangerous); err != nil {
+		return fmt.Errorf("sql executor: %w", err)
 	}
 	var err error
 	s.datasource = datasource
