@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/params"
-	"github.com/BernardSimon/etl-go/etl/core/procrssor"
+	"github.com/BernardSimon/etl-go/etl/core/processor"
 	"github.com/BernardSimon/etl-go/etl/core/record"
 )
 
@@ -23,7 +23,7 @@ type Processor struct {
 }
 
 // ProcessorCreator 返回处理器名称、实例和参数定义
-func ProcessorCreator() (string, procrssor.Processor, []params.Params) {
+func ProcessorCreator() (string, processor.Processor, []params.Params) {
 	return name, &Processor{}, []params.Params{
 		{
 			Key:          "mapping",

@@ -46,7 +46,7 @@ func (m *MockSource) Column() map[string]string {
 	return map[string]string{}
 }
 
-// MockProcessor is a test double for the procrssor.Processor interface.
+// MockProcessor is a test double for the processor.Processor interface.
 type MockProcessor struct {
 	ProcessFunc func(record.Record) (record.Record, error)
 	OpenErr     error

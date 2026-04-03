@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 
-	params2 "github.com/BernardSimon/etl-go/etl/core/params"
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/server/model"
 	"github.com/BernardSimon/etl-go/server/task"
@@ -154,100 +153,59 @@ func RunTaskOnce(req *_type.RunTaskOnceRequest, _ string) (interface{}, error) {
 
 func GetTypeByComponent(_ *interface{}, _ string) (interface{}, error) {
 	var response _type.GetTypeByComponentResponse
+
+	// Query all datasources once to avoid N+1 queries
+	var allDataSources []model.DataSource
+	model.DB.Model(&model.DataSource{}).Select("name", "id", "type").Find(&allDataSources)
+	dsByType := make(map[string][]struct {
+		Name string `json:"name"`
+		ID   string `json:"id"`
+	})
+	for _, ds := range allDataSources {
+		dsByType[ds.Type] = append(dsByType[ds.Type], struct {
+			Name string `json:"name"`
+			ID   string `json:"id"`
+		}{Name: ds.Name, ID: ds.ID})
+	}
+
 	var execute, source, sink []_type.TypeDataSource
 	var processor []_type.TypeNoDataSource
+
 	for _, typeName := range factory.GetExecutorTypeList() {
-		var dataSource []model.DataSource
 		store, _ := factory.CreateExecutor(typeName)
-		params := store.Params
-		var exItem _type.TypeDataSource
+		exItem := _type.TypeDataSource{Type: typeName, Params: store.Params}
 		if store.Datasource != nil {
-			name := *store.Datasource
-			model.DB.Model(&model.DataSource{}).Select("name", "id").Where("type = ?", name).Find(&dataSource)
-			dsL := make([]struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
-			}, 0)
-			for _, ds := range dataSource {
-				dsL = append(dsL, struct {
-					Name string `json:"name"`
-					ID   string `json:"id"`
-				}{
-					Name: ds.Name,
-					ID:   ds.ID,
-				})
-			}
+			dsL := dsByType[*store.Datasource]
 			exItem.DataSource = &dsL
 		}
-		exItem.Type = typeName
-		exItem.Params = params
 		execute = append(execute, exItem)
 	}
 	for _, typeName := range factory.GetSourceTypeList() {
 		store, _ := factory.CreateSource(typeName)
-		var dataSource []model.DataSource
-		params := store.Params
-		var sourceItem _type.TypeDataSource
+		sourceItem := _type.TypeDataSource{Type: typeName, Params: store.Params}
 		if store.Datasource != nil {
-			name := *store.Datasource
-			model.DB.Model(&model.DataSource{}).Select("name", "id").Where("type = ?", name).Find(&dataSource)
-			dsL := make([]struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
-			}, 0)
-			for _, ds := range dataSource {
-				dsL = append(dsL, struct {
-					Name string `json:"name"`
-					ID   string `json:"id"`
-				}{
-					Name: ds.Name,
-					ID:   ds.ID,
-				})
-			}
+			dsL := dsByType[*store.Datasource]
 			sourceItem.DataSource = &dsL
 		}
-		sourceItem.Type = typeName
-		sourceItem.Params = params
 		source = append(source, sourceItem)
 	}
 	for _, typeName := range factory.GetProcessorTypeList() {
 		store, _ := factory.CreateProcessor(typeName)
-		params := store.Params
-		processor = append(processor, struct {
-			Type   string           `json:"type"`
-			Params []params2.Params `json:"params"`
-		}{
+		processor = append(processor, _type.TypeNoDataSource{
 			Type:   typeName,
-			Params: params,
+			Params: store.Params,
 		})
 	}
 	for _, typeName := range factory.GetSinkTypeList() {
-		var dataSource []model.DataSource
 		store, _ := factory.CreateSink(typeName)
-		params := store.Params
-		var sinkItem _type.TypeDataSource
+		sinkItem := _type.TypeDataSource{Type: typeName, Params: store.Params}
 		if store.Datasource != nil {
-			name := *store.Datasource
-			model.DB.Model(&model.DataSource{}).Select("name", "id").Where("type = ?", name).Find(&dataSource)
-			dsL := make([]struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
-			}, 0)
-			for _, ds := range dataSource {
-				dsL = append(dsL, struct {
-					Name string `json:"name"`
-					ID   string `json:"id"`
-				}{
-					Name: ds.Name,
-					ID:   ds.ID,
-				})
-			}
+			dsL := dsByType[*store.Datasource]
 			sinkItem.DataSource = &dsL
 		}
-		sinkItem.Type = typeName
-		sinkItem.Params = params
 		sink = append(sink, sinkItem)
 	}
+
 	response.Executor = execute
 	response.Source = source
 	response.Processor = processor

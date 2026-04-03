@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/BernardSimon/etl-go/etl/core/params"
-	"github.com/BernardSimon/etl-go/etl/core/procrssor"
+	"github.com/BernardSimon/etl-go/etl/core/processor"
 	"github.com/BernardSimon/etl-go/etl/core/record"
 )
 
@@ -20,7 +20,7 @@ type Processor struct {
 	toType string // 目标数据类型。
 }
 
-func ProcessorCreator() (string, procrssor.Processor, []params.Params) {
+func ProcessorCreator() (string, processor.Processor, []params.Params) {
 	return name, &Processor{}, []params.Params{
 		{
 			Key:          "column",

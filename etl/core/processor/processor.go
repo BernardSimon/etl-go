@@ -1,4 +1,4 @@
-package procrssor
+package processor
 
 import (
 	"github.com/BernardSimon/etl-go/etl/core/params"

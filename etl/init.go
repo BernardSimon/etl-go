@@ -1,6 +1,8 @@
 package etl
 
 import (
+	"errors"
+
 	dorisDatasource "github.com/BernardSimon/etl-go/components/datasource/doris"
 	mysqlDatasource "github.com/BernardSimon/etl-go/components/datasource/mysql"
 	postgreDatasource "github.com/BernardSimon/etl-go/components/datasource/postgre"
@@ -20,45 +22,57 @@ import (
 	sqlSource "github.com/BernardSimon/etl-go/components/sources/sql"
 	sqlVariable "github.com/BernardSimon/etl-go/components/variable/sql"
 	"github.com/BernardSimon/etl-go/etl/factory"
+	"go.uber.org/zap"
 )
 
 func init() {
-	// 注册数据源
-	factory.RegisterDataSource(dorisDatasource.DatasourceCreator)
-	factory.RegisterDataSource(mysqlDatasource.DatasourceCreator)
-	factory.RegisterDataSource(postgreDatasource.DatasourceCreator)
-	factory.RegisterDataSource(sqliteDatasource.DatasourceCreator)
+	if err := RegisterComponents(); err != nil {
+		zap.L().Fatal("Failed to register ETL components", zap.Error(err))
+	}
+}
 
-	//注册变量执行器
-	factory.RegisterVariable(sqlVariable.VariableCreatorMysql)
-	factory.RegisterVariable(sqlVariable.VariableCreatorPostgre)
-	factory.RegisterVariable(sqlVariable.VariableCreatorSqlite)
+// RegisterComponents registers all built-in ETL components.
+// Returns the first registration error encountered.
+func RegisterComponents() error {
+	var errs []error
 
-	//注册执行器
-	factory.RegisterExecutor(sqlExecutor.ExecutorCreatorMysql)
-	factory.RegisterExecutor(sqlExecutor.ExecutorCreatorPostgre)
-	factory.RegisterExecutor(sqlExecutor.ExecutorCreatorSqlite)
+	// 注册数据源 (must be first, as other components depend on them)
+	errs = append(errs, factory.RegisterDataSource(dorisDatasource.DatasourceCreator))
+	errs = append(errs, factory.RegisterDataSource(mysqlDatasource.DatasourceCreator))
+	errs = append(errs, factory.RegisterDataSource(postgreDatasource.DatasourceCreator))
+	errs = append(errs, factory.RegisterDataSource(sqliteDatasource.DatasourceCreator))
 
-	//注册数据输入
-	factory.RegisterSource(sqlSource.SourceCreatorMysql)
-	factory.RegisterSource(sqlSource.SourceCreatorPostgre)
-	factory.RegisterSource(csvSource.SourceCreator)
-	factory.RegisterSource(jsonSource.SourceCreator)
-	factory.RegisterSource(sqlSource.SourceCreatorSqlite)
+	// 注册变量执行器
+	errs = append(errs, factory.RegisterVariable(sqlVariable.VariableCreatorMysql))
+	errs = append(errs, factory.RegisterVariable(sqlVariable.VariableCreatorPostgre))
+	errs = append(errs, factory.RegisterVariable(sqlVariable.VariableCreatorSqlite))
 
-	//注册数据输出
-	factory.RegisterSink(sqlSink.SinkCreatorMysql)
-	factory.RegisterSink(sqlSink.SinkCreatorPostgre)
-	factory.RegisterSink(csvSink.SinkCreator)
-	factory.RegisterSink(jsonSink.SinkCreator)
-	factory.RegisterSink(dorisSink.SinkCreator)
-	factory.RegisterSink(sqlSink.SinkCreatorSqlite)
+	// 注册执行器
+	errs = append(errs, factory.RegisterExecutor(sqlExecutor.ExecutorCreatorMysql))
+	errs = append(errs, factory.RegisterExecutor(sqlExecutor.ExecutorCreatorPostgre))
+	errs = append(errs, factory.RegisterExecutor(sqlExecutor.ExecutorCreatorSqlite))
 
-	//注册处理器
-	factory.RegisterProcessor(convertTypeProcessor.ProcessorCreator)
-	factory.RegisterProcessor(filterRowsProcessor.ProcessorCreator)
-	factory.RegisterProcessor(maskDataProcessor.ProcessorCreator)
-	factory.RegisterProcessor(renameColumnProcessor.ProcessorCreator)
-	factory.RegisterProcessor(selectColumnsProcessor.ProcessorCreator)
+	// 注册数据输入
+	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorMysql))
+	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorPostgre))
+	errs = append(errs, factory.RegisterSource(csvSource.SourceCreator))
+	errs = append(errs, factory.RegisterSource(jsonSource.SourceCreator))
+	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorSqlite))
 
+	// 注册数据输出
+	errs = append(errs, factory.RegisterSink(sqlSink.SinkCreatorMysql))
+	errs = append(errs, factory.RegisterSink(sqlSink.SinkCreatorPostgre))
+	errs = append(errs, factory.RegisterSink(csvSink.SinkCreator))
+	errs = append(errs, factory.RegisterSink(jsonSink.SinkCreator))
+	errs = append(errs, factory.RegisterSink(dorisSink.SinkCreator))
+	errs = append(errs, factory.RegisterSink(sqlSink.SinkCreatorSqlite))
+
+	// 注册处理器
+	errs = append(errs, factory.RegisterProcessor(convertTypeProcessor.ProcessorCreator))
+	errs = append(errs, factory.RegisterProcessor(filterRowsProcessor.ProcessorCreator))
+	errs = append(errs, factory.RegisterProcessor(maskDataProcessor.ProcessorCreator))
+	errs = append(errs, factory.RegisterProcessor(renameColumnProcessor.ProcessorCreator))
+	errs = append(errs, factory.RegisterProcessor(selectColumnsProcessor.ProcessorCreator))
+
+	return errors.Join(errs...)
 }

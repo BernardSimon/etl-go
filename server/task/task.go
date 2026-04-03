@@ -12,7 +12,7 @@ import (
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/executor"
-	"github.com/BernardSimon/etl-go/etl/core/procrssor"
+	"github.com/BernardSimon/etl-go/etl/core/processor"
 	"github.com/BernardSimon/etl-go/etl/core/sink"
 	"github.com/BernardSimon/etl-go/etl/core/source"
 	"github.com/BernardSimon/etl-go/etl/factory"
@@ -72,80 +72,86 @@ func SetMissions() {
 func middleware(missionID string, runBy string) {
 	var mission model.Task
 	runtime := model.CustomTime{Time: time.Now()}
-	model.DB.Where("id = ?", missionID).First(&mission)
+	if err := model.DB.Where("id = ?", missionID).First(&mission).Error; err != nil {
+		zap.L().Error("任务查询失败", zap.String("service", "task"), zap.String("name", missionID), zap.Error(err))
+		return
+	}
 	zap.L().Info(fmt.Sprintf("开始执行任务 %s", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID))
 	if mission.Status != 1 && runBy == "system" {
 		zap.L().Error("系统错误，执行未调度任务", zap.String("service", "task"), zap.String("name", mission.ID))
 		return
 	}
-	defer model.DB.Save(&mission)
-	if !mission.IsRunning {
-
-		//记录开始状态时间
-		mission.IsRunning = true
-		mission.LastRunTime = &runtime
-		model.DB.Save(&mission)
-		// 初始化map
-		variableList := make(map[string]string)
-		// 或者更好的方式是直接处理变量替换
-		rawData, _ := json.Marshal(mission.Data)
-		stringData := string(rawData)
-
-		re := regexp.MustCompile(`\$\{[^}]*}`)
-		matches := re.FindAllString(stringData, -1)
-		missionRun := mission
-		if len(matches) != 0 {
-			// 使用map去重并获取变量值
-			for _, match := range matches {
-				if _, exists := variableList[match]; !exists {
-					vName := strings.TrimPrefix(match, "${")
-					vName = strings.TrimSuffix(vName, "}")
-					value, err := GetValueByName(vName)
-					if err != nil {
-						zap.L().Error("变量解析错误:"+match, zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
-						return
-						// 可以考虑是否继续执行或者返回错误
-					}
-					variableList[match] = value
-				}
-			}
-			// 变量替换
-			for placeholder, value := range variableList {
-				stringData = strings.ReplaceAll(stringData, placeholder, value)
-			}
-
-			// 更新任务配置
-			var replacedData _type.TaskData
-			err := json.Unmarshal([]byte(stringData), &replacedData)
-			if err != nil {
-				zap.L().Error("任务变量配置解析错误", zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
-				return
-			}
-			zap.L().Info(fmt.Sprintf("任务 %s 变量替换成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Any("content", variableList))
-			missionRun.Data = &replacedData
-		}
-		//执行任务业务函数
-		err := RunTask(missionRun, runBy)
-		//记录结束时间
-		endTime := model.CustomTime{Time: time.Now()}
-		mission.LastEndTime = &endTime
-		if err != nil {
-			//记录错误
-			mission.ErrMsg = err.Error()
-			if runBy == "system" {
-				cancelMission(&mission, 2)
-				zap.L().Error(fmt.Sprintf("任务 %s 执行失败,已自动暂停", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
-			}
-		} else {
-			mission.LastSuccessTime = &runtime
-			mission.ErrMsg = "Success"
-			zap.L().Info(fmt.Sprintf("任务 %s 执行成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID))
-		}
-		mission.IsRunning = false
-	} else {
+	if mission.IsRunning {
 		zap.L().Info("任务正在运行中,下个周期将再次尝试", zap.String("service", "task"), zap.String("name", mission.ID))
 		return
 	}
+
+	// 标记任务开始运行
+	mission.IsRunning = true
+	mission.LastRunTime = &runtime
+	if err := model.DB.Save(&mission).Error; err != nil {
+		zap.L().Error("任务状态更新失败", zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
+		return
+	}
+
+	// 变量替换
+	variableList := make(map[string]string)
+	rawData, _ := json.Marshal(mission.Data)
+	stringData := string(rawData)
+
+	re := regexp.MustCompile(`\$\{[^}]*}`)
+	matches := re.FindAllString(stringData, -1)
+	missionRun := mission
+	if len(matches) != 0 {
+		for _, match := range matches {
+			if _, exists := variableList[match]; !exists {
+				vName := strings.TrimPrefix(match, "${")
+				vName = strings.TrimSuffix(vName, "}")
+				value, err := GetValueByName(vName)
+				if err != nil {
+					zap.L().Error("变量解析错误:"+match, zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
+					mission.IsRunning = false
+					mission.ErrMsg = "变量解析错误: " + match
+					model.DB.Save(&mission)
+					return
+				}
+				variableList[match] = value
+			}
+		}
+		for placeholder, value := range variableList {
+			stringData = strings.ReplaceAll(stringData, placeholder, value)
+		}
+		var replacedData _type.TaskData
+		if err := json.Unmarshal([]byte(stringData), &replacedData); err != nil {
+			zap.L().Error("任务变量配置解析错误", zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
+			mission.IsRunning = false
+			mission.ErrMsg = "变量配置解析错误"
+			model.DB.Save(&mission)
+			return
+		}
+		zap.L().Info(fmt.Sprintf("任务 %s 变量替换成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Any("content", variableList))
+		missionRun.Data = &replacedData
+	}
+
+	// 执行任务业务函数
+	err := RunTask(missionRun, runBy)
+
+	// 记录结束时间并更新状态
+	endTime := model.CustomTime{Time: time.Now()}
+	mission.LastEndTime = &endTime
+	if err != nil {
+		mission.ErrMsg = err.Error()
+		if runBy == "system" {
+			cancelMission(&mission, 2)
+			zap.L().Error(fmt.Sprintf("任务 %s 执行失败,已自动暂停", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
+		}
+	} else {
+		mission.LastSuccessTime = &runtime
+		mission.ErrMsg = "Success"
+		zap.L().Info(fmt.Sprintf("任务 %s 执行成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID))
+	}
+	mission.IsRunning = false
+	model.DB.Save(&mission)
 }
 
 func CancelMission(mission *model.Task) {
@@ -189,8 +195,6 @@ func RunMissionManual(missionID string) error {
 	return nil
 }
 
-var runCtxMap = make(map[string]context.CancelFunc)
-
 func RunTask(mission model.Task, runBy string) (err error) {
 	var missionRecord = model.TaskRecord{
 		RunBy:  runBy,
@@ -208,10 +212,9 @@ func RunTask(mission model.Task, runBy string) (err error) {
 	}
 	defer func() {
 		if err == nil {
-			if _, exist := ManualCancelMap[missionRecord.ID]; exist {
+			if runState.IsManualCancelled(missionRecord.ID) {
 				missionRecord.Status = 2
 				missionRecord.Message = "任务被手动中止"
-				delete(ManualCancelMap, mission.ID)
 			} else {
 				missionRecord.Status = 1
 				missionRecord.Message = "ok"
@@ -367,7 +370,7 @@ func RunTask(mission model.Task, runBy string) (err error) {
 	}
 	Sink = SinkStore.Handle
 
-	processors := make([]procrssor.Processor, 0)
+	processors := make([]processor.Processor, 0)
 	processorsConfigs := make([]pipeline.ProcessorConfig, 0)
 	for _, pConfig := range mission.Data.Processors {
 		p, err := factory.CreateProcessor(pConfig.Type)
@@ -435,25 +438,17 @@ func RunTask(mission model.Task, runBy string) (err error) {
 	engine := pipeline.NewEngine(missionRecord.ID, BeforeExecutor, BeforeExecutorDatasource, Source, SourceDatasource, processors, Sink, SinkDatasource, cfg, AfterExecutor, AfterExecutorDatasource)
 	ctx := context.Background()
 	runCtx, cancel := context.WithCancel(ctx)
-	defer delete(runCtxMap, missionRecord.ID)
+	runState.SetCancel(missionRecord.ID, cancel)
+	defer runState.RemoveCancel(missionRecord.ID)
 	defer cancel()
-	runCtxMap[missionRecord.ID] = cancel
 	if err := engine.Run(missionRecord.ID, runCtx, BeforeExecutorConfig, SourceConfig, processorsConfigs, SinkConfig, AfterExecutorConfig); err != nil {
 		return err
 	}
 	return nil
 }
 
-var ManualCancelMap = make(map[string]string)
-
 func CancelMissionRecord(ID string) error {
-	if cancel, ok := runCtxMap[ID]; ok {
-		cancel()
-		ManualCancelMap[ID] = "cancel"
-		return nil
-	} else {
-		return errors.New("任务不存在或状态不可停止")
-	}
+	return runState.CancelRecord(ID)
 }
 
 func GetValueByName(name string) (string, error) {

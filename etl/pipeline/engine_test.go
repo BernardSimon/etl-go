@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
-	"github.com/BernardSimon/etl-go/etl/core/procrssor"
+	"github.com/BernardSimon/etl-go/etl/core/processor"
 	"github.com/BernardSimon/etl-go/etl/core/record"
 	"github.com/BernardSimon/etl-go/etl/core/sink"
 	"github.com/BernardSimon/etl-go/etl/core/source"
@@ -127,7 +127,7 @@ func TestEngine_Run_WithProcessor(t *testing.T) {
 		},
 	}
 
-	engine := newTestEngine("test-2", src, []procrssor.Processor{proc}, snk)
+	engine := newTestEngine("test-2", src, []processor.Processor{proc}, snk)
 
 	ctx := context.Background()
 	err := engine.Run("test-2", ctx, nil, map[string]string{}, []ProcessorConfig{{Type: "mock", Params: map[string]string{}}}, map[string]string{}, nil)
@@ -187,9 +187,9 @@ func TestEngine_Run_ContextCancellation(t *testing.T) {
 }
 
 // newTestEngine creates a minimal Engine for testing with small batch/channel sizes.
-func newTestEngine(id string, src source.Source, processors []procrssor.Processor, snk sink.Sink) *Engine {
+func newTestEngine(id string, src source.Source, processors []processor.Processor, snk sink.Sink) *Engine {
 	if processors == nil {
-		processors = []procrssor.Processor{}
+		processors = []processor.Processor{}
 	}
 	return &Engine{
 		id:          id,

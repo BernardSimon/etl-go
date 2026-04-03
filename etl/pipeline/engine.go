@@ -11,7 +11,7 @@ import (
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/executor"
-	"github.com/BernardSimon/etl-go/etl/core/procrssor"
+	"github.com/BernardSimon/etl-go/etl/core/processor"
 	"github.com/BernardSimon/etl-go/etl/core/record"
 	"github.com/BernardSimon/etl-go/etl/core/sink"
 	"github.com/BernardSimon/etl-go/etl/core/source"
@@ -49,7 +49,7 @@ type Engine struct {
 	beforeExecutorDatasource *datasource.Datasource
 	source                   source.Source
 	sourceDatasource         *datasource.Datasource
-	processors               []procrssor.Processor
+	processors               []processor.Processor
 	sink                     sink.Sink
 	sinkDatasource           *datasource.Datasource
 	afterExecutor            executor.Executor
@@ -62,7 +62,7 @@ type Engine struct {
 
 // NewEngine 创建一个新的管道引擎实例。
 
-func NewEngine(id string, beforeExecutor *executor.Executor, beforeExecutorDatasource *datasource.Datasource, source source.Source, sourceDatasource *datasource.Datasource, processors []procrssor.Processor, sink sink.Sink, sinkDatasource *datasource.Datasource, config Config, afterExecute *executor.Executor, afterExecuteDatasource *datasource.Datasource) *Engine {
+func NewEngine(id string, beforeExecutor *executor.Executor, beforeExecutorDatasource *datasource.Datasource, source source.Source, sourceDatasource *datasource.Datasource, processors []processor.Processor, sink sink.Sink, sinkDatasource *datasource.Datasource, config Config, afterExecute *executor.Executor, afterExecuteDatasource *datasource.Datasource) *Engine {
 	batchSize := config.BatchSize
 	if batchSize <= 0 {
 		batchSize = defaultBatchSize
@@ -309,7 +309,7 @@ func (e *Engine) runSource(id string, ctx context.Context, outChan chan<- record
 }
 
 // runProcessor 是流水线上的一个工作站，负责执行单个处理逻辑。
-func (e *Engine) runProcessor(id string, ctx context.Context, p procrssor.Processor, inChan <-chan record.Record, outChan chan<- record.Record, errChan chan<- error, num int, pType string) {
+func (e *Engine) runProcessor(id string, ctx context.Context, p processor.Processor, inChan <-chan record.Record, outChan chan<- record.Record, errChan chan<- error, num int, pType string) {
 	defer e.wg.Done()
 	defer close(outChan) // 当前阶段处理完毕，关闭自己的输出通道，以通知下一阶段。
 	zap.L().Info("正在启动处理器 (Processor) #"+strconv.Itoa(num)+" ("+pType+")...", zap.String("service", "etl"), zap.String("name", id))

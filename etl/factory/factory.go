@@ -5,11 +5,10 @@ import (
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/executor"
-	"github.com/BernardSimon/etl-go/etl/core/procrssor"
+	"github.com/BernardSimon/etl-go/etl/core/processor"
 	"github.com/BernardSimon/etl-go/etl/core/sink"
 	"github.com/BernardSimon/etl-go/etl/core/source"
 	"github.com/BernardSimon/etl-go/etl/core/variable"
-	"go.uber.org/zap"
 )
 
 var (
@@ -21,10 +20,10 @@ var (
 	datasourceRegistry = make(map[string]*DatasourceStore)
 )
 
-func RegisterSource(creator source.SourceCreator) {
+func RegisterSource(creator source.SourceCreator) error {
 	n, s, d, p := creator()
 	if _, exists := sourceRegistry[n]; exists {
-		zap.L().Fatal(fmt.Sprintf("FATAL: Source with name '%s' is already registered", n), zap.String("service", "etl"), zap.String("name", n))
+		return fmt.Errorf("source with name '%s' is already registered", n)
 	}
 	ss := SourceStore{
 		Name:   n,
@@ -34,27 +33,29 @@ func RegisterSource(creator source.SourceCreator) {
 	if d != nil {
 		_, err := CreateDataSource(*d)
 		if err != nil {
-			zap.L().Fatal("FATAL: DataSource with name '%s' has not registered", zap.String("service", "etl"), zap.String("name", n))
+			return fmt.Errorf("datasource '%s' required by source '%s' has not been registered", *d, n)
 		}
 		ss.Datasource = d
 	}
 	sourceRegistry[n] = &ss
+	return nil
 }
-func RegisterProcessor(creator procrssor.ProcessorCreator) {
+func RegisterProcessor(creator processor.ProcessorCreator) error {
 	n, p, pa := creator()
 	if _, exists := processorRegistry[n]; exists {
-		zap.L().Fatal("FATAL: Processor with name '%s' is already registered", zap.String("service", "etl"), zap.String("name", n))
+		return fmt.Errorf("processor with name '%s' is already registered", n)
 	}
 	processorRegistry[n] = &ProcessorStore{
 		Name:   n,
 		Handle: p,
 		Params: pa,
 	}
+	return nil
 }
-func RegisterSink(creator sink.SinkCreator) {
+func RegisterSink(creator sink.SinkCreator) error {
 	n, s, d, p := creator()
 	if _, exists := sinkRegistry[n]; exists {
-		zap.L().Fatal("FATAL: Sink with name '%s' is already registered", zap.String("service", "etl"), zap.String("name", n))
+		return fmt.Errorf("sink with name '%s' is already registered", n)
 	}
 	ss := SinkStore{
 		Name:   n,
@@ -64,16 +65,17 @@ func RegisterSink(creator sink.SinkCreator) {
 	if d != nil {
 		_, err := CreateDataSource(*d)
 		if err != nil {
-			zap.L().Fatal("FATAL: DataSource with name '%s' has not registered", zap.String("service", "etl"), zap.String("name", n))
+			return fmt.Errorf("datasource '%s' required by sink '%s' has not been registered", *d, n)
 		}
 		ss.Datasource = d
 	}
 	sinkRegistry[n] = &ss
+	return nil
 }
-func RegisterExecutor(creator executor.ExecutorCreator) {
+func RegisterExecutor(creator executor.ExecutorCreator) error {
 	n, e, d, p := creator()
 	if _, exists := executorRegistry[n]; exists {
-		zap.L().Fatal("FATAL: Executor with name '%s' is already registered", zap.String("service", "etl"), zap.String("name", n))
+		return fmt.Errorf("executor with name '%s' is already registered", n)
 	}
 	es := ExecutorStore{
 		Name:   n,
@@ -83,16 +85,17 @@ func RegisterExecutor(creator executor.ExecutorCreator) {
 	if d != nil {
 		_, err := CreateDataSource(*d)
 		if err != nil {
-			zap.L().Fatal("FATAL: DataSource with name '%s' has not registered", zap.String("service", "etl"), zap.String("name", n))
+			return fmt.Errorf("datasource '%s' required by executor '%s' has not been registered", *d, n)
 		}
 		es.Datasource = d
 	}
 	executorRegistry[n] = &es
+	return nil
 }
-func RegisterVariable(creator variable.VariableCreator) {
+func RegisterVariable(creator variable.VariableCreator) error {
 	n, v, d, p := creator()
 	if _, exists := variableRegistry[n]; exists {
-		zap.L().Fatal("FATAL: Variable with name '%s' is already registered", zap.String("service", "etl"), zap.String("name", n))
+		return fmt.Errorf("variable with name '%s' is already registered", n)
 	}
 	vs := VariableStore{
 		Name:   n,
@@ -102,23 +105,25 @@ func RegisterVariable(creator variable.VariableCreator) {
 	if d != nil {
 		_, err := CreateDataSource(*d)
 		if err != nil {
-			zap.L().Fatal("FATAL: DataSource with name '%s' has not registered", zap.String("service", "etl"), zap.String("name", n))
+			return fmt.Errorf("datasource '%s' required by variable '%s' has not been registered", *d, n)
 		}
 		vs.Datasource = d
 	}
 	variableRegistry[n] = &vs
+	return nil
 }
 
-func RegisterDataSource(creator datasource.DatasourceCreator) {
+func RegisterDataSource(creator datasource.DatasourceCreator) error {
 	n, d, p := creator()
 	if _, exists := datasourceRegistry[n]; exists {
-		zap.L().Fatal("FATAL: DataSource with name '%s' is already registered", zap.String("service", "etl"), zap.String("name", n))
+		return fmt.Errorf("datasource with name '%s' is already registered", n)
 	}
 	datasourceRegistry[n] = &DatasourceStore{
 		Name:   n,
 		Handle: d,
 		Params: p,
 	}
+	return nil
 }
 func CreateSource(name string) (SourceStore, error) {
 	creator, ok := sourceRegistry[name]
