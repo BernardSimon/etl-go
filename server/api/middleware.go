@@ -55,6 +55,17 @@ func RequestResponseMiddleware(c *gin.Context) {
 			break
 		}
 	}
+	// 前缀匹配：zh-CN → zh, en-US → en
+	if !langMatched {
+		primary := strings.Split(language, "-")[0]
+		for _, lang := range i18n.AcceptLanguages {
+			if lang == primary {
+				language = primary
+				langMatched = true
+				break
+			}
+		}
+	}
 	if !langMatched {
 		language = "en"
 	}

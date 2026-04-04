@@ -11,7 +11,7 @@ import { message } from "ant-design-vue";
 
 // 创建 axios 实例
 const service: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL + "/etlApi",
+  baseURL: `${String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")}/api/v1`,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
@@ -29,6 +29,9 @@ service.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `${token}`;
       // config.headers.Token = `${token}`;
+    }
+    if (config.data instanceof FormData && config.headers) {
+      delete (config.headers as Record<string, unknown>)["Content-Type"];
     }
     config.headers["Accept-Language"] = userStore.language;
 

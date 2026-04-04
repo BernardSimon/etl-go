@@ -77,29 +77,29 @@ type AddTaskRequest struct {
 }
 
 type DeleteTaskRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type GetTaskByIdRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type UpdateTaskRequest struct {
-	Id     string   `json:"id" binding:"required"`
+	Id     string   `json:"id" uri:"id" binding:"required"`
 	Name   string   `json:"mission_name" binding:"required"`
 	ParStr TaskData `json:"params" binding:"required"`
 	Cron   string   `json:"cron" binding:"required"`
 }
 
 type RunTaskRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type StopTaskRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 type RunTaskOnceRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type GetTypeByComponentResponse struct {
@@ -122,13 +122,13 @@ type TypeNoDataSource struct {
 }
 
 type GetTaskRecordListRequest struct {
-	PageNo      int    `json:"page_no"`
-	PageSize    int    `json:"page_size"`
-	MissionName string `json:"mission_name"`
-	Status      int    `json:"status"`
-	ID          string `json:"id"`
+	PageNo      int    `json:"page_no" form:"page_no"`
+	PageSize    int    `json:"page_size" form:"page_size"`
+	MissionName string `json:"mission_name" form:"mission_name"`
+	Status      int    `json:"status" form:"status"`
+	ID          string `json:"id" form:"id"`
 }
 
 type CancelTaskRecord struct {
-	ID string `json:"id"`
+	ID string `json:"id" uri:"id"`
 }

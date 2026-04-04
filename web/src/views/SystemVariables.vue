@@ -25,7 +25,7 @@
           <template v-if="column.key === 'action'">
             <a-space>
               <a-button type="primary" size="small" @click="handleEdit(record)">{{ t('systemVariable.edit.title') }}</a-button>
-              <a-button size="small" class="test-button" @click="handleTest(record)">{{ t('runLog.table.action.viewParams') }}</a-button>
+              <a-button size="small" class="test-button" @click="handleTest(record)">{{ t('systemVariable.test.button') }}</a-button>
               <a-button size="small" type="primary" danger @click="handleDelete(record)">{{ t('systemVariable.delete.title') }}</a-button>
             </a-space>
           </template>
@@ -326,7 +326,7 @@ const handleSaveVariable = () => {
           datasource_id: variableDialog.value.data.datasource_id || null,
           description: variableDialog.value.data.description,
           value: value,
-          edit: variableDialog.value.isEdit ? "true" : "false"
+          edit: variableDialog.value.isEdit
         };
 
         saveVariable(payload).then((res: any) => {

@@ -234,6 +234,7 @@ const handleEdit = async (data: any, id: string, record: any) => {
   addOrEditDialog.value.id = id;
   addOrEditDialog.value.data = data;
   addOrEditDialog.value.record = record;
+  addOrEditDialog.value.taskType = record?.cron === "manual" ? "manual" : "scheduled";
   addOrEditDialog.value.show = true;
 };
 

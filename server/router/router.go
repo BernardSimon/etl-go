@@ -63,14 +63,14 @@ func Register(engine *gin.Engine) {
 	v1.POST("/data-sources", AdminAPI(api.NewDataSource, true))
 	v1.GET("/data-sources", AdminAPI(api.GetDataSourceList))
 	v1.GET("/data-sources/types", AdminAPI(api.GetDataSourceTypeList))
-	v1.DELETE("/data-sources", AdminAPI(api.DeleteDataSource))
+	v1.DELETE("/data-sources/:id", AdminAPI(api.DeleteDataSource))
 
 	// 变量
 	v1.GET("/variables", AdminAPI(api.GetVariableList))
 	v1.GET("/variables/types", AdminAPI(api.GetVariableTypeList))
 	v1.POST("/variables", AdminAPI(api.NewVariable))
-	v1.DELETE("/variables", AdminAPI(api.DeleteVariable))
-	v1.POST("/variables/test", AdminAPI(api.TestVariable))
+	v1.DELETE("/variables/:id", AdminAPI(api.DeleteVariable))
+	v1.POST("/variables/:id/test", AdminAPI(api.TestVariable))
 
 	// 任务
 	v1.GET("/tasks", AdminAPI(api.GetTaskAll))
@@ -93,7 +93,7 @@ func Register(engine *gin.Engine) {
 	// 文件
 	v1.GET("/files", AdminAPI(api.GetFileList))
 	v1.POST("/files", AdminAPI(api.UploadFile, true))
-	v1.DELETE("/files", AdminAPI(api.DeleteFile))
+	v1.DELETE("/files/:id", AdminAPI(api.DeleteFile))
 }
 
 func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) gin.HandlerFunc {
@@ -109,6 +109,8 @@ func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) 
 			c.Abort()
 			return
 		}
+		// 绑定 URI 路径参数（如 :id），覆盖到同一个 req 结构体
+		_ = c.ShouldBindUri(&req)
 		resp, err := f(&req, lang)
 		if err != nil {
 			c.Set("code", 2)

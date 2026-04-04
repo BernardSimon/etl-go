@@ -154,7 +154,7 @@ import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import MissionConfigModal from "../components/MissionConfigModal.vue";
 import { useI18n } from "vue-i18n";
-import {deleteFile, getFileListByTaskRecordID} from "../../src/api/file.ts";
+import { buildFileDownloadUrl, deleteFile, getFileListByTaskRecordID } from "../api/file";
 import {useUserStore} from "../../src/stores/user.ts"; // 新增引入
 
 const { t } = useI18n(); // 初始化i18n实例
@@ -432,7 +432,7 @@ const closeTaskFilesModal = () => {
 const downloadTaskFile = (record: any) => {
   const link = document.createElement('a');
   const token = useUserStore().token;
-  link.href = import.meta.env.VITE_API_BASE_URL + `/file/${record.path}/${record.id}${record.ex_name}?token=${token}`;
+  link.href = buildFileDownloadUrl(record, token);
   link.download = record.name;
   link.click();
 };
@@ -441,7 +441,7 @@ const downloadTaskFile = (record: any) => {
 const handleDeleteTaskFile = (record: any) => {
   Modal.confirm({
     title: t('file.delete.confirm.title'),
-    content: t('file.delete.confirm.content'),
+    content: t('runLog.taskFiles.deletePhysicalWarning'),
     onOk: async () => {
       try {
         const res = await deleteFile({ id: record.id });

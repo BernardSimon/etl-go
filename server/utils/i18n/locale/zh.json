@@ -32,5 +32,18 @@
   "Fail To Get Body": "获取请求体失败",
   "success": "操作成功",
   "task has started running, please check the results": "任务已开始运行，请查看结果",
-  "failed to get datasource list": "获取数据源列表失败"
+  "failed to get datasource list": "获取数据源列表失败",
+  "manual task cannot be scheduled": "手动任务不能被调度",
+  "too many login attempts, please try again later": "登录尝试次数过多，请稍后再试",
+  "invalid variable type": "无效的变量类型",
+  "variable value is not complete": "变量值不完整",
+  "variable type need datasource": "该变量类型需要数据源",
+  "datasource type is not match": "数据源类型不匹配",
+  "variable type do not support datasource": "该变量类型不支持数据源",
+  "failed to save variable": "保存变量失败",
+  "failed to delete variable": "删除变量失败",
+  "failed to upload file": "上传文件失败",
+  "failed to delete file": "删除文件失败",
+  "failed to get file list": "获取文件列表失败",
+  "task record id is required": "任务记录ID不能为空"
 }

@@ -32,5 +32,18 @@
   "Fail To Get Body": "Fail To Get Body",
   "success": "success",
   "task has started running, please check the results": "task has started running, please check the results",
-  "failed to get datasource list": "failed to get datasource list"
+  "failed to get datasource list": "failed to get datasource list",
+  "manual task cannot be scheduled": "manual task cannot be scheduled",
+  "too many login attempts, please try again later": "too many login attempts, please try again later",
+  "invalid variable type": "invalid variable type",
+  "variable value is not complete": "variable value is not complete",
+  "variable type need datasource": "variable type needs a datasource",
+  "datasource type is not match": "datasource type does not match",
+  "variable type do not support datasource": "variable type does not support datasource",
+  "failed to save variable": "failed to save variable",
+  "failed to delete variable": "failed to delete variable",
+  "failed to upload file": "failed to upload file",
+  "failed to delete file": "failed to delete file",
+  "failed to get file list": "failed to get file list",
+  "task record id is required": "task record id is required"
 }

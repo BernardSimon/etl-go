@@ -11,15 +11,14 @@ export const getTaskRecordList = (data: {
   status?: number;
   id?: string;
 }) => {
-  return request.post<ApiResponse<{ list: any[]; total: number }>>(
-    "/getTaskRecordList",
-    data
-  );
+  return request.get<ApiResponse<{ list: any[]; total: number }>>("/task-records", {
+    params: data,
+  });
 };
 
 /**
  * 中止运行记录
  */
 export const cancelTaskRecord = (data: { id: string }) => {
-  return request.post<ApiResponse<any>>("/cancelTaskRecord", data);
+  return request.post<ApiResponse<any>>(`/task-records/${data.id}/cancel`);
 };

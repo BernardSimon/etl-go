@@ -956,6 +956,56 @@ const fileList = ref<any[]>([]);
 const uploadedFiles = ref<any[]>([]);
 const uploadLoading = ref(false);
 
+const getAllConfigItems = () => {
+  return [
+    formData.before_execute,
+    formData.source,
+    ...formData.processors,
+    formData.sink,
+    formData.after_execute,
+  ].filter(Boolean) as ConfigItem[];
+};
+
+const syncUploadedFilesToParams = () => {
+  if (uploadedFiles.value.length === 0) {
+    return;
+  }
+
+  const firstFileId = uploadedFiles.value[0]?.id;
+  const allFileIds = uploadedFiles.value.map((file) => file.id).join(",");
+
+  getAllConfigItems().forEach((config) => {
+    config.params = (config.params || []).map((param) => {
+      if (param.key === "file_id" && !param.value && firstFileId) {
+        return { ...param, value: firstFileId };
+      }
+      if (param.key === "file_ids" && !param.value && allFileIds) {
+        return { ...param, value: allFileIds };
+      }
+      return param;
+    });
+  });
+};
+
+const removeUploadedFileFromParams = (id: string) => {
+  getAllConfigItems().forEach((config) => {
+    config.params = (config.params || []).map((param) => {
+      if (param.key === "file_id" && param.value === id) {
+        return { ...param, value: "" };
+      }
+      if (param.key === "file_ids" && typeof param.value === "string") {
+        const nextValue = param.value
+            .split(",")
+            .map((item) => item.trim())
+            .filter((item) => item && item !== id)
+            .join(",");
+        return { ...param, value: nextValue };
+      }
+      return param;
+    });
+  });
+};
+
 const beforeUpload = (file: any) => {
   // 文件类型和大小验证
   const isLt10M = file.size / 1024 / 1024 < 10;
@@ -994,6 +1044,7 @@ const handleUpload = async () => {
 
     const results = await Promise.all(uploadPromises);
     uploadedFiles.value = [...uploadedFiles.value, ...results];
+    syncUploadedFilesToParams();
     fileList.value = [];
     message.success(t('missionConfig.fileUpload.uploadSuccess'));
   } catch (error: any) {
@@ -1014,6 +1065,7 @@ const copyFileId = async (id: string) => {
 
 const removeFile = (id: string) => {
   uploadedFiles.value = uploadedFiles.value.filter(file => file.id !== id);
+  removeUploadedFileFromParams(id);
   message.success(t('missionConfig.fileUpload.removeSuccess'));
 };
 

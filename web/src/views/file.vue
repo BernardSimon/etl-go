@@ -73,7 +73,7 @@ import { ref, reactive, onMounted } from 'vue';
 import {message, Modal, UploadProps} from 'ant-design-vue';
 import { InboxOutlined } from '@ant-design/icons-vue';
 import { useI18n } from 'vue-i18n';
-import { getFileList, uploadFile, deleteFile } from '../api/file';
+import { buildFileDownloadUrl, getFileList, uploadFile, deleteFile } from '../api/file';
 import {useUserStore} from "../stores/user.ts";
 
 const { t } = useI18n();
@@ -217,7 +217,7 @@ const handleUpload = async () => {
 const downloadFile = (record: any) => {
   const link = document.createElement('a');
   const token = useUserStore().token
-  link.href = import.meta.env.VITE_API_BASE_URL +`/file/${record.path}/${record.id}${record.ex_name}?token=${token}`;
+  link.href = buildFileDownloadUrl(record, token);
   link.download = record.name;
   link.click();
 };

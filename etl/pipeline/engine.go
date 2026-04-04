@@ -150,19 +150,19 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 
 	defer func() {
 		zap.L().Info("Closing (Sink)...", zap.String("service", "etl"), zap.String("name", id))
-		if closeErr := e.sink.Close(); closeErr != nil && err == nil {
+		if closeErr := e.sink.Close(); closeErr != nil {
 			zap.L().Error("Failed to close Sink", zap.Error(closeErr), zap.String("service", "etl"), zap.String("name", id))
 			err = errors.Join(err, fmt.Errorf("pipeline: failed to close sink: %w", closeErr))
 		}
 		for i := len(e.processors) - 1; i >= 0; i-- {
 			zap.L().Info("Closing (Processor) #"+strconv.Itoa(i+1)+" ("+processorConfigs[i].Type+")...", zap.String("service", "etl"), zap.String("name", id))
-			if closeErr := e.processors[i].Close(); closeErr != nil && err == nil {
+			if closeErr := e.processors[i].Close(); closeErr != nil {
 				zap.L().Error("Failed to close Processor", zap.Error(closeErr), zap.String("service", "etl"), zap.String("name", id))
 				err = errors.Join(err, fmt.Errorf("pipeline: failed to close processor #%d (%s): %w", i+1, processorConfigs[i].Type, closeErr))
 			}
 		}
 		zap.L().Info("Closing (Source)...", zap.String("service", "etl"), zap.String("name", id))
-		if closeErr := e.source.Close(); closeErr != nil && err == nil {
+		if closeErr := e.source.Close(); closeErr != nil {
 			zap.L().Error("Failed to close Source", zap.Error(closeErr), zap.String("service", "etl"), zap.String("name", id))
 			err = errors.Join(err, fmt.Errorf("pipeline: failed to close source: %w", closeErr))
 		}
@@ -174,7 +174,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 			}
 			fileSaveErr := file.SaveOutputFile(id, fileIds, isError)
 			if fileSaveErr != nil {
-				zap.L().Error("Failed to save output file", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
+				zap.L().Error("Failed to save output file", zap.Error(fileSaveErr), zap.String("service", "etl"), zap.String("name", id))
 				err = errors.Join(err, fmt.Errorf("pipeline: failed to save output file: %w", fileSaveErr))
 			}
 		}
@@ -407,17 +407,21 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 			extra["file_path"] = filePath
 
 		case "file_ids":
-			fileIds := strings.Split(v, ",")
-			if len(fileIds) == 0 {
-				return "", fmt.Errorf("file_ids config is invalid for key %s", k)
-			}
-			filePaths := make([]string, len(fileIds))
-			for i, fid := range fileIds {
+			rawIds := strings.Split(v, ",")
+			var filePaths []string
+			for _, fid := range rawIds {
+				fid = strings.TrimSpace(fid)
+				if fid == "" {
+					continue
+				}
 				filePath, err := file.GetFilePath(fid)
 				if err != nil {
 					return "", fmt.Errorf("file_ids config is invalid for key %s: %w", k, err)
 				}
-				filePaths[i] = filePath
+				filePaths = append(filePaths, filePath)
+			}
+			if len(filePaths) == 0 {
+				return "", fmt.Errorf("file_ids config is invalid for key %s: no valid IDs", k)
 			}
 			extra["file_paths"] = strings.Join(filePaths, ",")
 

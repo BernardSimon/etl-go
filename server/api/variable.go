@@ -27,7 +27,7 @@ func NewVariable(req *_type.NewVariableRequest, lang string) (interface{}, error
 	query := model.DB.Where("name = ?", req.Name)
 
 	// 如果是编辑模式，排除当前变量ID
-	if req.Edit == "true" {
+	if req.Edit {
 		query = query.Where("id != ?", req.ID)
 	}
 
@@ -41,7 +41,7 @@ func NewVariable(req *_type.NewVariableRequest, lang string) (interface{}, error
 
 	// 处理变量创建或更新
 	var variable model.Variable
-	if req.Edit == "true" {
+	if req.Edit {
 		// 编辑模式：检查变量是否存在
 		if err := model.DB.Where("id = ?", req.ID).First(&variable).Error; err != nil {
 			return nil, errors.New("variable not exists")

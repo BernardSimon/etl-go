@@ -7,11 +7,11 @@ type NewDataSourceRequest struct {
 	Name string    `json:"name" binding:"required"`
 	Type string    `json:"type" binding:"required"`
 	Data KeyValues `json:"data" binding:"required"`
-	Edit string    `json:"edit" binding:"required"`
+	Edit bool      `json:"edit"`
 }
 
 type DeleteDataSourceRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type GetDatasourceParamsByTypeRequest struct {

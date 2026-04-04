@@ -221,7 +221,7 @@ func GetTaskRecordList(req *_type.GetTaskRecordListRequest, _ string) (interface
 		tx = tx.Where("id = ?", req.ID)
 	}
 	if req.MissionName != "" {
-		tx = tx.Joins("left join missions on missions.id = mission_records.mission_id").Where("missions.name like ?", "%"+req.MissionName+"%")
+		tx = tx.Joins("Task").Where("Task.name LIKE ?", "%"+req.MissionName+"%")
 	}
 	if req.Status != -1 {
 		tx = tx.Where("status = ?", req.Status)

@@ -263,7 +263,7 @@ const handleAddDataSource = () => {
           name: string;
           type: string;
           data: { key: string; value: string }[];
-          edit: string;
+          edit: boolean;
         } = {
           id: form.id || "",
           name: form.name,
@@ -272,7 +272,7 @@ const handleAddDataSource = () => {
             key: item.key,
             value: item.value
           })),
-          edit: addDataSourceDialog.value.isEdit ? "true" : "false"
+          edit: addDataSourceDialog.value.isEdit
         };
 
         return addDataSource(payload);

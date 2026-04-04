@@ -262,7 +262,10 @@ func (e EncryptionSerializer) Value(_ context.Context, _ *schema.Field, _ reflec
 		}
 
 		// 加密逻辑
-		key, _ := hex.DecodeString(config.Config.AesKey)
+		key, err := hex.DecodeString(config.Config.AesKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode AES key: %w", err)
+		}
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create cipher: %w", err)

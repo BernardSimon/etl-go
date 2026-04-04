@@ -34,7 +34,7 @@ func NewDataSource(req *_type.NewDataSourceRequest, lang string) (interface{}, e
 	if err != nil {
 		return nil, errors.New("illegal command")
 	}
-	if req.Edit == "true" {
+	if req.Edit {
 		if existingRecord.ID != req.ID && existingRecord.ID != "" {
 			return nil, errors.New("datasource name already exist")
 		}
@@ -61,7 +61,7 @@ func NewDataSource(req *_type.NewDataSourceRequest, lang string) (interface{}, e
 		}
 	}
 	var existingRecord1 model.DataSource
-	if req.Edit == "true" {
+	if req.Edit {
 		if err := model.DB.Where("id = ?", req.ID).First(&existingRecord1).Error; err != nil {
 			return nil, errors.New("illegal command")
 		}

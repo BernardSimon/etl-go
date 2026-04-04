@@ -2,24 +2,18 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/executor"
 	"github.com/BernardSimon/etl-go/etl/core/processor"
-	"github.com/BernardSimon/etl-go/etl/core/sink"
-	"github.com/BernardSimon/etl-go/etl/core/source"
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/etl/pipeline"
 	"github.com/BernardSimon/etl-go/server/config"
 	"github.com/BernardSimon/etl-go/server/model"
-	_type "github.com/BernardSimon/etl-go/server/type"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
@@ -60,9 +54,9 @@ func SetMissions() {
 		if mission.Cron == "manual" {
 			continue
 		}
-		err := ScheduleMission(&mission)
-		if err != nil {
-			panic(err)
+		if err := ScheduleMission(&mission); err != nil {
+			zap.L().Error("任务调度失败，已跳过", zap.String("service", "system"), zap.String("name", mission.ID), zap.Error(err))
+			continue
 		}
 	}
 	cr.Start()
@@ -94,43 +88,19 @@ func middleware(missionID string, runBy string) {
 		return
 	}
 
-	// 变量替换
-	variableList := make(map[string]string)
-	rawData, _ := json.Marshal(mission.Data)
-	stringData := string(rawData)
-
-	re := regexp.MustCompile(`\$\{[^}]*}`)
-	matches := re.FindAllString(stringData, -1)
+	// 结构化变量替换（只替换 Params.Value，不破坏 JSON 结构）
 	missionRun := mission
-	if len(matches) != 0 {
-		for _, match := range matches {
-			if _, exists := variableList[match]; !exists {
-				vName := strings.TrimPrefix(match, "${")
-				vName = strings.TrimSuffix(vName, "}")
-				value, err := GetValueByName(vName)
-				if err != nil {
-					zap.L().Error("变量解析错误:"+match, zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
-					mission.IsRunning = false
-					mission.ErrMsg = "变量解析错误: " + match
-					model.DB.Save(&mission)
-					return
-				}
-				variableList[match] = value
-			}
-		}
-		for placeholder, value := range variableList {
-			stringData = strings.ReplaceAll(stringData, placeholder, value)
-		}
-		var replacedData _type.TaskData
-		if err := json.Unmarshal([]byte(stringData), &replacedData); err != nil {
-			zap.L().Error("任务变量配置解析错误", zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
-			mission.IsRunning = false
-			mission.ErrMsg = "变量配置解析错误"
-			model.DB.Save(&mission)
-			return
-		}
-		zap.L().Info(fmt.Sprintf("任务 %s 变量替换成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Any("content", variableList))
-		missionRun.Data = &replacedData
+	replacedData, varErr := ReplaceVariables(mission.Data)
+	if varErr != nil {
+		zap.L().Error("变量解析错误", zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(varErr))
+		mission.IsRunning = false
+		mission.ErrMsg = varErr.Error()
+		model.DB.Save(&mission)
+		return
+	}
+	if replacedData != nil {
+		missionRun.Data = replacedData
+		zap.L().Info(fmt.Sprintf("任务 %s 变量替换成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID))
 	}
 
 	// 执行任务业务函数
@@ -236,206 +206,95 @@ func RunTask(mission model.Task, runBy string) (err error) {
 	if mission.ID == "" {
 		return errors.New("任务不存在")
 	}
+
+	// BeforeExecutor
 	var BeforeExecutorConfig *map[string]string
 	var BeforeExecutor *executor.Executor
 	var BeforeExecutorDatasource *datasource.Datasource
 	if mission.Data.BeforeExecute != nil {
-		beforeExecutorConfig := make(map[string]string)
 		beforeExecutorStore, err := factory.CreateExecutor(mission.Data.BeforeExecute.Type)
 		if err != nil {
 			return err
 		}
 		BeforeExecutor = &beforeExecutorStore.Handle
-		for _, param := range mission.Data.BeforeExecute.Params {
-			beforeExecutorConfig[param.Key] = param.Value
-		}
+		cfg := buildConfig(mission.Data.BeforeExecute.Params)
+		BeforeExecutorConfig = &cfg
 		if beforeExecutorStore.Datasource != nil {
-			if mission.Data.BeforeExecute.DataSource == nil {
-				return errors.New("数据源未指定")
-			}
-			var dataSourceData model.DataSource
-			err = model.DB.Where("`id` = ?", mission.Data.BeforeExecute.DataSource).First(&dataSourceData).Error
-			if err != nil {
-				return errors.New("数据源不存在")
-			}
-
-			var dataSourceDataConfig = make(map[string]string)
-			for _, param := range dataSourceData.Data {
-				dataSourceDataConfig[param.Key] = param.Value
-			}
-			dsName := *beforeExecutorStore.Datasource
-			if dataSourceData.Type != dsName {
-				return errors.New("数据源类型错误")
-			}
-			dsStore, err := factory.CreateDataSource(dsName)
-			if err != nil {
-				return errors.New("数据源类型未找到")
-			}
-			_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+			ds, err := initDatasource(mission.Data.BeforeExecute.DataSource, *beforeExecutorStore.Datasource)
 			if err != nil {
 				return err
 			}
-			err = dsStore.Handle.Init(dataSourceDataConfig)
-			if err != nil {
-				return err
-			}
-			BeforeExecutorDatasource = &dsStore.Handle
+			BeforeExecutorDatasource = ds
 		}
-		BeforeExecutorConfig = &beforeExecutorConfig
 	}
 
-	var SourceConfig = make(map[string]string)
-	var Source source.Source
-	var SourceDatasource *datasource.Datasource
+	// Source
 	SourceStore, err := factory.CreateSource(mission.Data.Source.Type)
 	if err != nil {
 		return err
 	}
-	for _, param := range mission.Data.Source.Params {
-		SourceConfig[param.Key] = param.Value
-	}
+	SourceConfig := buildConfig(mission.Data.Source.Params)
+	var SourceDatasource *datasource.Datasource
 	if SourceStore.Datasource != nil {
-		if mission.Data.Source.DataSource == nil {
-			return errors.New("数据源未指定")
-		}
-		var dataSourceData model.DataSource
-		err = model.DB.Where("`id` = ?", mission.Data.Source.DataSource).First(&dataSourceData).Error
-		if err != nil {
-			return errors.New("数据源不存在")
-		}
-
-		var dataSourceDataConfig = make(map[string]string)
-		for _, param := range dataSourceData.Data {
-			dataSourceDataConfig[param.Key] = param.Value
-		}
-		dsName := *SourceStore.Datasource
-		if dsName != dataSourceData.Type {
-			return errors.New("数据源类型错误")
-		}
-		dsStore, err := factory.CreateDataSource(dsName)
-		if err != nil {
-			return errors.New("数据源类型未找到")
-		}
-		_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+		ds, err := initDatasource(mission.Data.Source.DataSource, *SourceStore.Datasource)
 		if err != nil {
 			return err
 		}
-		err = dsStore.Handle.Init(dataSourceDataConfig)
-		if err != nil {
-			return err
-		}
-		SourceDatasource = &dsStore.Handle
+		SourceDatasource = ds
 	}
-	Source = SourceStore.Handle
-	var SinkConfig = make(map[string]string)
-	var Sink sink.Sink
-	var SinkDatasource *datasource.Datasource
+
+	// Sink
 	SinkStore, err := factory.CreateSink(mission.Data.Sinks.Type)
 	if err != nil {
 		return err
 	}
-	for _, param := range mission.Data.Sinks.Params {
-		SinkConfig[param.Key] = param.Value
-	}
+	SinkConfig := buildConfig(mission.Data.Sinks.Params)
+	var SinkDatasource *datasource.Datasource
 	if SinkStore.Datasource != nil {
-		if mission.Data.Sinks.DataSource == nil {
-			return errors.New("数据源未指定")
-		}
-		var dataSourceData model.DataSource
-		err = model.DB.Where("`id` = ?", mission.Data.Sinks.DataSource).First(&dataSourceData).Error
-		if err != nil {
-			return errors.New("数据源不存在")
-		}
-		var dataSourceDataConfig = make(map[string]string)
-		for _, param := range dataSourceData.Data {
-			dataSourceDataConfig[param.Key] = param.Value
-		}
-		dsName := *SinkStore.Datasource
-		if dsName != dataSourceData.Type {
-			return errors.New("数据源类型错误")
-		}
-		dataSourceStore, err := factory.CreateDataSource(dsName)
-		if err != nil {
-			return errors.New("数据源类型未找到")
-		}
-		_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+		ds, err := initDatasource(mission.Data.Sinks.DataSource, *SinkStore.Datasource)
 		if err != nil {
 			return err
 		}
-		err = dataSourceStore.Handle.Init(dataSourceDataConfig)
-		if err != nil {
-			return err
-		}
-		SinkDatasource = &dataSourceStore.Handle
+		SinkDatasource = ds
 	}
-	Sink = SinkStore.Handle
 
-	processors := make([]processor.Processor, 0)
-	processorsConfigs := make([]pipeline.ProcessorConfig, 0)
+	// Processors
+	processors := make([]processor.Processor, 0, len(mission.Data.Processors))
+	processorsConfigs := make([]pipeline.ProcessorConfig, 0, len(mission.Data.Processors))
 	for _, pConfig := range mission.Data.Processors {
 		p, err := factory.CreateProcessor(pConfig.Type)
 		if err != nil {
 			return err
 		}
 		processors = append(processors, p.Handle)
-		var ProcessConfig = make(map[string]string)
-		for _, param := range pConfig.Params {
-			ProcessConfig[param.Key] = param.Value
-		}
 		processorsConfigs = append(processorsConfigs, pipeline.ProcessorConfig{
 			Type:   pConfig.Type,
-			Params: ProcessConfig,
+			Params: buildConfig(pConfig.Params),
 		})
 	}
 
+	// AfterExecutor
 	var AfterExecutorConfig *map[string]string
 	var AfterExecutor *executor.Executor
 	var AfterExecutorDatasource *datasource.Datasource
 	if mission.Data.AfterExecute != nil {
-		afterExecuteConfig := make(map[string]string)
 		afterExecuteStore, err := factory.CreateExecutor(mission.Data.AfterExecute.Type)
 		if err != nil {
 			return err
 		}
 		AfterExecutor = &afterExecuteStore.Handle
-		for _, param := range mission.Data.AfterExecute.Params {
-			afterExecuteConfig[param.Key] = param.Value
-		}
-		AfterExecutorConfig = &afterExecuteConfig
+		cfg := buildConfig(mission.Data.AfterExecute.Params)
+		AfterExecutorConfig = &cfg
 		if afterExecuteStore.Datasource != nil {
-			if mission.Data.AfterExecute.DataSource == nil {
-				return errors.New("数据源未指定")
-			}
-			var dataSourceData model.DataSource
-			err = model.DB.Where("`id` = ?", mission.Data.AfterExecute.DataSource).First(&dataSourceData).Error
-			if err != nil {
-				return errors.New("数据源不存在")
-			}
-
-			var dataSourceDataConfig = make(map[string]string)
-			for _, param := range dataSourceData.Data {
-				dataSourceDataConfig[param.Key] = param.Value
-			}
-			dsName := *afterExecuteStore.Datasource
-			if dsName != dataSourceData.Type {
-				return errors.New("数据源类型错误")
-			}
-			dsStore, err := factory.CreateDataSource(dsName)
-			if err != nil {
-				return errors.New("数据源类型未找到")
-			}
-			_, err = pipeline.HandleInternalConfig(&dataSourceDataConfig)
+			ds, err := initDatasource(mission.Data.AfterExecute.DataSource, *afterExecuteStore.Datasource)
 			if err != nil {
 				return err
 			}
-			err = dsStore.Handle.Init(dataSourceDataConfig)
-			if err != nil {
-				return err
-			}
-			AfterExecutorDatasource = &dsStore.Handle
+			AfterExecutorDatasource = ds
 		}
 	}
-	engine := pipeline.NewEngine(missionRecord.ID, BeforeExecutor, BeforeExecutorDatasource, Source, SourceDatasource, processors, Sink, SinkDatasource, cfg, AfterExecutor, AfterExecutorDatasource)
+
+	engine := pipeline.NewEngine(missionRecord.ID, BeforeExecutor, BeforeExecutorDatasource, SourceStore.Handle, SourceDatasource, processors, SinkStore.Handle, SinkDatasource, cfg, AfterExecutor, AfterExecutorDatasource)
 	ctx := context.Background()
 	runCtx, cancel := context.WithCancel(ctx)
 	runState.SetCancel(missionRecord.ID, cancel)
@@ -453,11 +312,11 @@ func CancelMissionRecord(ID string) error {
 
 func GetValueByName(name string) (string, error) {
 	var variable model.Variable
-	err := model.DB.Where("`name` = ?", name).Preload("DataSource").First(&variable).Error
+	err := model.DB.Where("`name` = ?", name).First(&variable).Error
 	if err != nil {
 		return "", errors.New("variable does not exist")
 	}
-	v, err := factory.CreateVariable(variable.DataSource.Type)
+	v, err := factory.CreateVariable(variable.Type)
 	if err != nil {
 		return "", errors.New("variable type does not exist")
 	}
@@ -467,11 +326,11 @@ func GetValueByName(name string) (string, error) {
 	}
 	var vDatasource *datasource.Datasource
 	if v.Datasource != nil {
-		if variable.DataSource.ID == "" {
+		if variable.DataSourceID == nil || *variable.DataSourceID == "" {
 			return "", errors.New("variable data source does not exist")
 		}
 		var dataSourceData model.DataSource
-		err := model.DB.Where("`name` = ?", variable.DataSource.Name).Find(&dataSourceData).Error
+		err := model.DB.Where("`id` = ?", variable.DataSourceID).First(&dataSourceData).Error
 		if err != nil {
 			return "", errors.New("variable data source does not exist")
 		}

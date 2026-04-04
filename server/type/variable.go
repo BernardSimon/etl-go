@@ -11,19 +11,19 @@ import (
 type NewVariableRequest struct {
 	ID           string    `json:"id"`
 	Type         string    `json:"type"`
-	DataSourceID *string   `json:"datasource_id" binding:"required"`
+	DataSourceID *string   `json:"datasource_id"`
 	Name         string    `json:"name" binding:"required"`
 	Description  string    `json:"description" binding:"required"`
 	Value        KeyValues `json:"value" binding:"required"`
-	Edit         string    `json:"edit" binding:"required"`
+	Edit         bool      `json:"edit"`
 }
 
 type DeleteVariableRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type TestVariableRequest struct {
-	Id string `json:"id" binding:"required"`
+	Id string `json:"id" uri:"id" binding:"required"`
 }
 
 type KeyValue struct {

@@ -13,7 +13,7 @@ import type {ApiResponse, Params} from "../types";
  * }
  */
 export const getDataSourceTypeList = () => {
-  return request.post<ApiResponse<{ list: { type: string,params: Params[]  }[] }>>("/getDataSourceTypeList");
+  return request.get<ApiResponse<{ list: { type: string,params: Params[]  }[] }>>("/data-sources/types");
 };
 
 /**
@@ -25,9 +25,9 @@ export const addDataSource = (data: {
   name: string;
   type: string;
   data: {key: string,value: string}[];
-  edit: string;
+  edit: boolean;
 }) => {
-  return request.post<ApiResponse<any>>("/newDataSource", data);
+  return request.post<ApiResponse<any>>("/data-sources", data);
 };
 /**
  * 删除数据源
@@ -37,7 +37,7 @@ export const addDataSource = (data: {
  * }
  */
 export const deleteDataSource = (data: { id: string }) => {
-  return request.post<ApiResponse<any>>("/deleteDataSource", data);
+  return request.delete<ApiResponse<any>>(`/data-sources/${data.id}`);
 };
 
 /**
@@ -51,5 +51,5 @@ export const deleteDataSource = (data: { id: string }) => {
  * }
  */
 export const getDataSourceList = () => {
-  return request.post<ApiResponse<{ list: any[] }>>("/getDataSourceList", {});
+  return request.get<ApiResponse<{ list: any[] }>>("/data-sources");
 };

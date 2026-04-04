@@ -64,6 +64,7 @@ export interface FileInfo {
   name: string;
   size: number;
   created_at: string;
+  path: string;
   ex_name : string;
 }
 
