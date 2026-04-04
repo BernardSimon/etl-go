@@ -7,3 +7,16 @@ logLevel: dev
 serverUrl: localhost:8080
 runWeb: true
 webUrl: localhost:8081
+corsOrigins:
+  - http://localhost:8081
+log:
+  filename: ./log/app.log
+  maxSize: 20
+  maxBackups: 3
+  maxAge: 7
+  compress: true
+database:
+  path: ./data.db
+  maxOpenConns: 10
+  maxIdleConns: 5
+  connMaxLifetime: 300

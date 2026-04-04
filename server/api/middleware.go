@@ -103,7 +103,7 @@ func RequestResponseMiddleware(c *gin.Context) {
 		c.JSON(400, response)
 	case 2:
 		zap.L().Warn("request service error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
-		c.JSON(400, response)
+		c.JSON(422, response)
 	case 3:
 		zap.L().Warn("request auth error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
 		c.JSON(401, response)

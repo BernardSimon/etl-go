@@ -46,13 +46,20 @@ func main() {
 		fmt.Println("WARNING: Using default weak password. Set ETL_PASSWORD environment variable or update config.yaml.")
 	}
 	// 日志初始化
+	logOpt := zapLog.LogOptions{
+		Filename:   config.Config.Log.Filename,
+		MaxSize:    config.Config.Log.MaxSize,
+		MaxBackups: config.Config.Log.MaxBackups,
+		MaxAge:     config.Config.Log.MaxAge,
+		Compress:   config.Config.Log.Compress,
+	}
 	switch config.Config.LogLevel {
 	case "prod":
 		gin.SetMode(gin.ReleaseMode)
-		zapLog.InitLog(true)
+		zapLog.InitLog(true, logOpt)
 	default:
 		gin.SetMode(gin.DebugMode)
-		zapLog.InitLog(false)
+		zapLog.InitLog(false, logOpt)
 	}
 	// 数据库自定义序列化-加密字段
 	schema.RegisterSerializer("encryption", &model.EncryptionSerializer{})

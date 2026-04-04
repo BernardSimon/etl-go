@@ -242,11 +242,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	// 6. 收集在运行过程中可能发生的任何错误，并统一返回。
 	var finalErr error
 	for runErr := range errChan {
-		if finalErr == nil {
-			finalErr = runErr
-		} else {
-			finalErr = fmt.Errorf("%v; %w", finalErr, runErr)
-		}
+		finalErr = errors.Join(finalErr, runErr)
 	}
 	if finalErr != nil {
 		zap.L().Error("数据处理失败", zap.Error(finalErr), zap.String("service", "etl"), zap.String("name", id))
@@ -366,17 +362,15 @@ func (e *Engine) runSink(id string, ctx context.Context, inChan <-chan record.Re
 					zap.L().Error("Sink 刷入批次时发生错误", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 					errChan <- fmt.Errorf("sink error: %w", err)
 					e.cancel()
-					// 注意：这里在出错后没有立即 return，是为了让循环自然结束，
-					// 从而可以继续处理 defer 和最后的 flush。
-					// 但因为 cancel() 被调用，其他 goroutine 会快速退出。
+					return // 出错后立即退出，避免继续写入产生半写数据
 				}
 				batch = make([]record.Record, 0, e.batchSize) // 重置批次
 			}
 		}
 	}
 
-	// 注意：循环结束后，必须处理最后一批可能不足一个 batchSize 的数据，否则会造成数据丢失。
-	if len(batch) > 0 {
+	// 循环结束后，处理最后一批不足 batchSize 的数据（已无错误信号时才写入）。
+	if len(batch) > 0 && ctx.Err() == nil {
 		zap.L().Info(fmt.Sprintf("正在刷入最后 %d 条记录...", len(batch)), zap.String("service", "etl"), zap.String("name", id))
 		if err := e.flush(batch); err != nil {
 			zap.L().Error("Sink 刷入最后批次时发生错误", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
@@ -394,11 +388,15 @@ func (e *Engine) flush(batch []record.Record) error {
 	return e.sink.Write(e.id, batch)
 }
 
+// HandleInternalConfig resolves special config keys (file_id, file_ids, file_name) into file paths.
+// It returns a copy of the config with resolved paths and the output file ID (if any).
+// The original config map is NOT modified.
 func HandleInternalConfig(config *map[string]string) (string, error) {
 	if config == nil {
 		return "", nil
 	}
 	var fileId = ""
+	extra := make(map[string]string) // collected additions, written back after iteration
 	for k, v := range *config {
 		switch k {
 		case "file_id":
@@ -406,8 +404,7 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("file_id config is invalid for key %s: %w", k, err)
 			}
-			(*config)["file_path"] = filePath
-			continue
+			extra["file_path"] = filePath
 
 		case "file_ids":
 			fileIds := strings.Split(v, ",")
@@ -415,15 +412,15 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 				return "", fmt.Errorf("file_ids config is invalid for key %s", k)
 			}
 			filePaths := make([]string, len(fileIds))
-			for i, fileId := range fileIds {
-				filePath, err := file.GetFilePath(fileId)
+			for i, fid := range fileIds {
+				filePath, err := file.GetFilePath(fid)
 				if err != nil {
 					return "", fmt.Errorf("file_ids config is invalid for key %s: %w", k, err)
 				}
 				filePaths[i] = filePath
 			}
-			(*config)["file_paths"] = strings.Join(filePaths, ",")
-			continue
+			extra["file_paths"] = strings.Join(filePaths, ",")
+
 		case "file_name":
 			fileExt, ok := (*config)["file_ext"]
 			if !ok {
@@ -433,12 +430,13 @@ func HandleInternalConfig(config *map[string]string) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("file_name config is invalid for key %s: %w", k, err)
 			}
-			(*config)["file_path"] = filePath
+			extra["file_path"] = filePath
 			fileId = id
-			continue
-		default:
-			continue
 		}
+	}
+	// Write resolved paths back into the config map
+	for k, v := range extra {
+		(*config)[k] = v
 	}
 	return fileId, nil
 }

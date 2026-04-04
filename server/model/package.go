@@ -11,6 +11,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,6 +32,22 @@ import (
 var DB *gorm.DB
 
 func MigrateDb() error {
+	dbCfg := config.Config.Database
+	dbPath := dbCfg.Path
+	if dbPath == "" {
+		dbPath = "./data.db"
+	}
+
+	// 迁移前备份
+	if _, err := os.Stat(dbPath); err == nil {
+		backupPath := dbPath + ".bak." + time.Now().Format("20060102150405")
+		if err := copyFile(dbPath, backupPath); err != nil {
+			zap.L().Warn("Failed to backup database before migration", zap.Error(err))
+		} else {
+			zap.L().Info("Database backup created", zap.String("path", backupPath))
+		}
+	}
+
 	err := DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &File{}, &TaskRecordFile{})
 	if err != nil {
 		return err
@@ -37,23 +55,57 @@ func MigrateDb() error {
 	return nil
 }
 
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
 func InitDb() error {
-	// 初始化 SQLite 数据库连接
-	dB, err := gorm.Open(sqlite.Open("./data.db"), &gorm.Config{
+	dbCfg := config.Config.Database
+	dbPath := dbCfg.Path
+	if dbPath == "" {
+		dbPath = "./data.db"
+	}
+
+	maxOpenConns := dbCfg.MaxOpenConns
+	if maxOpenConns <= 0 {
+		maxOpenConns = 10
+	}
+	maxIdleConns := dbCfg.MaxIdleConns
+	if maxIdleConns <= 0 {
+		maxIdleConns = 5
+	}
+	connMaxLifetime := dbCfg.ConnMaxLifetime
+	if connMaxLifetime <= 0 {
+		connMaxLifetime = 300
+	}
+
+	dB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger:      &sqlLogger{},
-		PrepareStmt: true, // 开启预编译语句缓存
+		PrepareStmt: true,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
 
-	// 获取底层sql.DB对象配置连接池
 	sqlDB, err := dB.DB()
 	if err != nil {
 		return fmt.Errorf("failed to obtain database instance: %w", err)
 	}
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(connMaxLifetime) * time.Second)
 
-	// 测试数据库连通性
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("database connection test failed: %w", err)
 	}

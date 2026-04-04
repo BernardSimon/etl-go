@@ -9,54 +9,77 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func InitLog(isProduction bool) {
-	var logger *zap.Logger
+// LogOptions configures the logger. Zero values fall back to defaults.
+type LogOptions struct {
+	Filename   string // default: ./log/app.log
+	MaxSize    int    // MB, default: 20
+	MaxBackups int    // default: 3
+	MaxAge     int    // days, default: 1
+	Compress   bool
+}
 
-	// 创建 lumberjack 实例用于日志切割
+func defaultOptions(opt LogOptions) LogOptions {
+	if opt.Filename == "" {
+		opt.Filename = "./log/app.log"
+	}
+	if opt.MaxSize <= 0 {
+		opt.MaxSize = 20
+	}
+	if opt.MaxBackups <= 0 {
+		opt.MaxBackups = 3
+	}
+	if opt.MaxAge <= 0 {
+		opt.MaxAge = 1
+	}
+	return opt
+}
+
+// NewLogger builds a *zap.Logger with the given options.
+// Callers can pass the result to zap.ReplaceGlobals if desired.
+func NewLogger(isProduction bool, opt LogOptions) *zap.Logger {
+	opt = defaultOptions(opt)
+
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "./log/app.log", // 日志文件路径
-		MaxSize:    20,              // 每个日志文件最大尺寸（MB）
-		MaxBackups: 3,               // 最多保留3个备份
-		MaxAge:     1,               // 最大保留天数
-		Compress:   true,            // 是否压缩旧的日志文件
+		Filename:   opt.Filename,
+		MaxSize:    opt.MaxSize,
+		MaxBackups: opt.MaxBackups,
+		MaxAge:     opt.MaxAge,
+		Compress:   opt.Compress,
 	}
 
-	// 自定义时间格式和输出编码
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString(t.Format("2006-01-02 15:04:05")) // 设置时间格式
+		enc.AppendString(t.Format("2006-01-02 15:04:05"))
 	}
+	encoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	consoleEncoder := zapcore.NewJSONEncoder(encoderConfig)
-
-	// 设置日志级别
 	var level zapcore.Level
 	if isProduction {
-		level = zapcore.InfoLevel // 生产环境只记录 Info 及以上级别
+		level = zapcore.InfoLevel
 	} else {
-		level = zapcore.DebugLevel // 测试环境记录 Debug 及以上级别
+		level = zapcore.DebugLevel
 	}
 
+	fileWriter := zapcore.AddSync(lumberjackLogger)
 	var core zapcore.Core
 	if isProduction {
-		// 生产环境只输出到文件，不输出到控制台
-		fileWriter := zapcore.AddSync(lumberjackLogger)
-		core = zapcore.NewCore(consoleEncoder, fileWriter, level)
+		core = zapcore.NewCore(encoder, fileWriter, level)
 	} else {
-		// 测试环境同时输出到控制台和文件
-		consoleDebugging := zapcore.Lock(os.Stdout)
-		fileWriter := zapcore.AddSync(lumberjackLogger)
+		consoleWriter := zapcore.Lock(os.Stdout)
 		core = zapcore.NewTee(
-			zapcore.NewCore(consoleEncoder, consoleDebugging, zapcore.WarnLevel),
-			zapcore.NewCore(consoleEncoder, fileWriter, level),
+			zapcore.NewCore(encoder, consoleWriter, zapcore.WarnLevel),
+			zapcore.NewCore(encoder, fileWriter, level),
 		)
 	}
 
-	// 根据环境设置不同的配置
 	if isProduction {
-		logger = zap.New(core, zap.AddCaller())
-	} else {
-		logger = zap.New(core, zap.AddCaller(), zap.Development())
+		return zap.New(core, zap.AddCaller())
 	}
+	return zap.New(core, zap.AddCaller(), zap.Development())
+}
+
+// InitLog is a convenience wrapper that builds a logger and sets it as the global logger.
+func InitLog(isProduction bool, opt LogOptions) {
+	logger := NewLogger(isProduction, opt)
 	zap.ReplaceGlobals(logger)
 }

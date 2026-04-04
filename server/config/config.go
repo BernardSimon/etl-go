@@ -11,17 +11,34 @@ import (
 var Config configModel
 var Ip string
 
+type LogConfig struct {
+	Filename   string `yaml:"filename"`   // log file path, default: ./log/app.log
+	MaxSize    int    `yaml:"maxSize"`    // MB per file, default: 20
+	MaxBackups int    `yaml:"maxBackups"` // number of backups, default: 3
+	MaxAge     int    `yaml:"maxAge"`     // days to retain, default: 1
+	Compress   bool   `yaml:"compress"`   // gzip old files, default: true
+}
+
+type DatabaseConfig struct {
+	Path            string `yaml:"path"`            // SQLite file path, default: ./data.db
+	MaxOpenConns    int    `yaml:"maxOpenConns"`    // default: 10
+	MaxIdleConns    int    `yaml:"maxIdleConns"`    // default: 5
+	ConnMaxLifetime int    `yaml:"connMaxLifetime"` // seconds, default: 300
+}
+
 type configModel struct {
-	Username    string   `yaml:"username"`
-	Password    string   `yaml:"password"`
-	JwtSecret   string   `yaml:"jwtSecret"`
-	AesKey      string   `yaml:"aesKey"`
-	InitDb      bool     `yaml:"initDb"`
-	LogLevel    string   `yaml:"logLevel"` // dev or prod
-	ServerUrl   string   `yaml:"serverUrl"`
-	RunWeb      bool     `yaml:"runWeb"`
-	WebUrl      string   `yaml:"webUrl"`
-	CorsOrigins []string `yaml:"corsOrigins"` // Allowed CORS origins, e.g. ["http://localhost:8081"]
+	Username    string         `yaml:"username"`
+	Password    string         `yaml:"password"`
+	JwtSecret   string         `yaml:"jwtSecret"`
+	AesKey      string         `yaml:"aesKey"`
+	InitDb      bool           `yaml:"initDb"`
+	LogLevel    string         `yaml:"logLevel"`    // dev or prod
+	Log         LogConfig      `yaml:"log"`
+	Database    DatabaseConfig `yaml:"database"`
+	ServerUrl   string         `yaml:"serverUrl"`
+	RunWeb      bool           `yaml:"runWeb"`
+	WebUrl      string         `yaml:"webUrl"`
+	CorsOrigins []string       `yaml:"corsOrigins"` // Allowed CORS origins, e.g. ["http://localhost:8081"]
 }
 
 func init() {

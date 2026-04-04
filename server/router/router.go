@@ -9,40 +9,91 @@ import (
 )
 
 func Register(engine *gin.Engine) {
+	// 文件静态服务（带 token 鉴权）
 	fileRouter := engine.Group("/file")
-	fileRouter.Use(api.AuthMiddlewareFile) // 添加认证中间件
+	fileRouter.Use(api.AuthMiddlewareFile)
 	fileRouter.StaticFS("/", http.Dir("./file"))
-	admin := engine.Group("/etlApi")
-	admin.Use(api.RequestResponseMiddleware)
-	admin.POST("/login", func(c *gin.Context) {
-		loginFn := api.LoginWithRateLimit(c)
-		AdminAPI(loginFn, true)(c)
+
+	// 公共中间件（日志、token 提取、语言）
+	withMiddleware := func(g *gin.RouterGroup) {
+		g.Use(api.RequestResponseMiddleware)
+	}
+
+	// ── 旧路由（deprecated，保持向后兼容）────────────────────────────────────
+	legacy := engine.Group("/etlApi")
+	withMiddleware(legacy)
+	legacy.POST("/login", func(c *gin.Context) {
+		AdminAPI(api.LoginWithRateLimit(c), true)(c)
 	})
-	admin.Use(api.AuthMiddleware)
-	admin.POST("/newDataSource", AdminAPI(api.NewDataSource, true))
-	admin.POST("/getDataSourceTypeList", AdminAPI(api.GetDataSourceTypeList))
-	admin.POST("/getDataSourceList", AdminAPI(api.GetDataSourceList))
-	admin.POST("/deleteDataSource", AdminAPI(api.DeleteDataSource))
-	admin.POST("/getVariableList", AdminAPI(api.GetVariableList))
-	admin.POST("/getVariableTypeList", AdminAPI(api.GetVariableTypeList))
-	admin.POST("/newVariable", AdminAPI(api.NewVariable))
-	admin.POST("/deleteVariable", AdminAPI(api.DeleteVariable))
-	admin.POST("/testVariable", AdminAPI(api.TestVariable))
-	admin.POST("/getTaskAll", AdminAPI(api.GetTaskAll))
-	admin.POST("/addTask", AdminAPI(api.AddTask))
-	admin.POST("/getTaskById", AdminAPI(api.GetTaskById))
-	admin.POST("/updateTask", AdminAPI(api.UpdateTask))
-	admin.POST("/runTask", AdminAPI(api.RunTask))
-	admin.POST("/deleteTask", AdminAPI(api.DeleteTask))
-	admin.POST("/stopTask", AdminAPI(api.StopTask))
-	admin.POST("/runTaskOnce", AdminAPI(api.RunTaskOnce))
-	admin.POST("/getTypeByComponent", AdminAPI(api.GetTypeByComponent))
-	admin.POST("/getTaskRecordList", AdminAPI(api.GetTaskRecordList))
-	admin.POST("/cancelTaskRecord", AdminAPI(api.CancelTaskRecord))
-	admin.POST("/getFileList", AdminAPI(api.GetFileList))
-	admin.POST("/uploadFile", AdminAPI(api.UploadFile, true))
-	admin.POST("/deleteFile", AdminAPI(api.DeleteFile))
-	admin.POST("/getFileListByTaskRecordID", AdminAPI(api.GetFileListByTaskRecordID))
+	legacy.Use(api.AuthMiddleware)
+	legacy.POST("/newDataSource", AdminAPI(api.NewDataSource, true))
+	legacy.POST("/getDataSourceTypeList", AdminAPI(api.GetDataSourceTypeList))
+	legacy.POST("/getDataSourceList", AdminAPI(api.GetDataSourceList))
+	legacy.POST("/deleteDataSource", AdminAPI(api.DeleteDataSource))
+	legacy.POST("/getVariableList", AdminAPI(api.GetVariableList))
+	legacy.POST("/getVariableTypeList", AdminAPI(api.GetVariableTypeList))
+	legacy.POST("/newVariable", AdminAPI(api.NewVariable))
+	legacy.POST("/deleteVariable", AdminAPI(api.DeleteVariable))
+	legacy.POST("/testVariable", AdminAPI(api.TestVariable))
+	legacy.POST("/getTaskAll", AdminAPI(api.GetTaskAll))
+	legacy.POST("/addTask", AdminAPI(api.AddTask))
+	legacy.POST("/getTaskById", AdminAPI(api.GetTaskById))
+	legacy.POST("/updateTask", AdminAPI(api.UpdateTask))
+	legacy.POST("/runTask", AdminAPI(api.RunTask))
+	legacy.POST("/deleteTask", AdminAPI(api.DeleteTask))
+	legacy.POST("/stopTask", AdminAPI(api.StopTask))
+	legacy.POST("/runTaskOnce", AdminAPI(api.RunTaskOnce))
+	legacy.POST("/getTypeByComponent", AdminAPI(api.GetTypeByComponent))
+	legacy.POST("/getTaskRecordList", AdminAPI(api.GetTaskRecordList))
+	legacy.POST("/cancelTaskRecord", AdminAPI(api.CancelTaskRecord))
+	legacy.POST("/getFileList", AdminAPI(api.GetFileList))
+	legacy.POST("/uploadFile", AdminAPI(api.UploadFile, true))
+	legacy.POST("/deleteFile", AdminAPI(api.DeleteFile))
+	legacy.POST("/getFileListByTaskRecordID", AdminAPI(api.GetFileListByTaskRecordID))
+
+	// ── v1 RESTful 路由 ───────────────────────────────────────────────────────
+	v1 := engine.Group("/api/v1")
+	withMiddleware(v1)
+	v1.POST("/login", func(c *gin.Context) {
+		AdminAPI(api.LoginWithRateLimit(c), true)(c)
+	})
+	v1.Use(api.AuthMiddleware)
+
+	// 数据源
+	v1.POST("/data-sources", AdminAPI(api.NewDataSource, true))
+	v1.GET("/data-sources", AdminAPI(api.GetDataSourceList))
+	v1.GET("/data-sources/types", AdminAPI(api.GetDataSourceTypeList))
+	v1.DELETE("/data-sources", AdminAPI(api.DeleteDataSource))
+
+	// 变量
+	v1.GET("/variables", AdminAPI(api.GetVariableList))
+	v1.GET("/variables/types", AdminAPI(api.GetVariableTypeList))
+	v1.POST("/variables", AdminAPI(api.NewVariable))
+	v1.DELETE("/variables", AdminAPI(api.DeleteVariable))
+	v1.POST("/variables/test", AdminAPI(api.TestVariable))
+
+	// 任务
+	v1.GET("/tasks", AdminAPI(api.GetTaskAll))
+	v1.POST("/tasks", AdminAPI(api.AddTask))
+	v1.GET("/tasks/:id", AdminAPI(api.GetTaskById))
+	v1.PUT("/tasks/:id", AdminAPI(api.UpdateTask))
+	v1.DELETE("/tasks/:id", AdminAPI(api.DeleteTask))
+	v1.POST("/tasks/:id/schedule", AdminAPI(api.RunTask))
+	v1.POST("/tasks/:id/stop", AdminAPI(api.StopTask))
+	v1.POST("/tasks/:id/run", AdminAPI(api.RunTaskOnce))
+
+	// 组件配置
+	v1.GET("/components", AdminAPI(api.GetTypeByComponent))
+
+	// 任务执行记录
+	v1.GET("/task-records", AdminAPI(api.GetTaskRecordList))
+	v1.POST("/task-records/:id/cancel", AdminAPI(api.CancelTaskRecord))
+	v1.GET("/task-records/:id/files", AdminAPI(api.GetFileListByTaskRecordID))
+
+	// 文件
+	v1.GET("/files", AdminAPI(api.GetFileList))
+	v1.POST("/files", AdminAPI(api.UploadFile, true))
+	v1.DELETE("/files", AdminAPI(api.DeleteFile))
 }
 
 func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) gin.HandlerFunc {
