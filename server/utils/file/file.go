@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/BernardSimon/etl-go/server/model"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +18,7 @@ func saveFile(path string, file *multipart.FileHeader) (*model.File, error) {
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	id := uuid.New().String()
+	id := model.GenerateID()
 	fileExName := filepath.Ext(file.Filename)
 
 	// 创建目标文件
@@ -119,7 +118,7 @@ func GetFilePath(id string) (string, error) {
 func SetOutputFile(fileName string, exName string) model.File {
 	var file = model.File{
 		Model: model.Model{
-			ID: uuid.New().String(),
+			ID: model.GenerateID(),
 		},
 		Name:   fileName,
 		Path:   "output",
@@ -151,7 +150,7 @@ func CreateOutputFile(fileName string, exName string) (string, string, error) {
 	if !strings.HasPrefix(exName, ".") {
 		exName = "." + exName
 	}
-	id := uuid.New().String()
+	id := model.GenerateID()
 	fullName := id + exName
 	if strings.HasSuffix(fileName, exName) {
 		fileName = strings.TrimSuffix(fileName, exName)

@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm/logger"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"gorm.io/gorm"
 )
 
@@ -113,6 +113,10 @@ func InitDb() error {
 	return nil
 }
 
+func GenerateID() string {
+	return ulid.Make().String()
+}
+
 type Model struct {
 	ID        string      `gorm:"size:36;primarykey" json:"id"`
 	UpdatedAt *CustomTime `json:"updated_at"`
@@ -121,7 +125,7 @@ type Model struct {
 
 func (m *Model) BeforeCreate(_ *gorm.DB) (err error) {
 	if m.ID == "" {
-		m.ID = uuid.New().String()
+		m.ID = GenerateID()
 	}
 	return
 }

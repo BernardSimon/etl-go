@@ -90,12 +90,12 @@ func TestCustomTime_Value_Zero(t *testing.T) {
 	assert.Nil(t, val)
 }
 
-func TestModel_BeforeCreate_GeneratesUUID(t *testing.T) {
+func TestModel_BeforeCreate_GeneratesULID(t *testing.T) {
 	m := &Model{}
 	err := m.BeforeCreate(nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, m.ID)
-	assert.Len(t, m.ID, 36) // UUID format: 8-4-4-4-12
+	assert.Len(t, m.ID, 26) // ULID format
 }
 
 func TestModel_BeforeCreate_PreservesExistingID(t *testing.T) {
