@@ -5,6 +5,7 @@
 <a id="中文说明"></a>
 
 [切换到 English](#english)
+[ETL-GO 文档站](https://etl.ziyi.chat)
 
 ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视化任务编排、可扩展组件体系、REST API、任务调度、运行日志、文件资产管理和模板化工作流能力。
 
@@ -730,6 +731,7 @@ ETL-Go 适合继续演进到：
 # ETL-Go
 
 [Switch to 中文](#中文说明)
+[ETL-GO Documentation](https://etl.ziyi.chat/en)
 
 ETL-Go is a modern ETL platform for data integration scenarios. It provides visual workflow orchestration, an extensible component system, REST APIs, task scheduling, runtime logs, file asset management, and template-based workflows.
 
