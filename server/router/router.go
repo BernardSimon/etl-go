@@ -85,15 +85,15 @@ func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) 
 			c.Set("maskData", "true")
 		}
 		var req T
-		if err := c.ShouldBind(&req); err != nil {
+		// 先绑定 URI 路径参数（如 :id），再绑定 body/query，避免 URI 字段 required 验证提前失败
+		if err := c.ShouldBindUri(&req); err != nil {
 			c.Set("code", 1)
 			c.Set("message", "invalid request parameters")
 			c.Set("data", buildValidationErrorData(err, req, lang))
 			c.Abort()
 			return
 		}
-		// 绑定 URI 路径参数（如 :id），覆盖到同一个 req 结构体
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := c.ShouldBind(&req); err != nil {
 			c.Set("code", 1)
 			c.Set("message", "invalid request parameters")
 			c.Set("data", buildValidationErrorData(err, req, lang))

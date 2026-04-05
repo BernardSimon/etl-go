@@ -237,7 +237,7 @@
   "missionConfig.missionName.placeholder": "Please enter task name",
   "missionConfig.cron.label": "Schedule Rule",
   "missionConfig.cron.placeholder": "Please enter schedule rule",
-  "missionConfig.cron.example": "Example: `0 */5 * * * *` means the task runs every 5 minutes.",
+  "missionConfig.cron.example": "Example: `*/5 * * * *` means the task runs every 5 minutes.",
   "missionConfig.beforeTask.title": "Pre-task",
   "missionConfig.beforeTask.description": "Use this for initialization or pre-processing before the main task starts; leave it empty if it is not needed.",
   "missionConfig.beforeTask.type.label": "Type",
