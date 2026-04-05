@@ -309,6 +309,8 @@
   "file.upload.cancelled": "上传已取消",
   "file.upload.cancelUpload": "取消上传",
   "file.upload.progress": "上传进度 {progress}%",
+  "file.upload.batchProgress": "正在上传第 {current}/{total} 个文件",
+  "file.upload.currentFile": "当前文件：{name}",
   "file.upload.hint": "支持大文件上传；上传期间请保持页面开启并避免切换网络。",
   "file.upload.selectedSize": "当前文件大小：{size}",
   "file.delete.confirm.title": "确认删除",

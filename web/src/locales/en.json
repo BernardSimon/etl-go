@@ -309,6 +309,8 @@
   "file.upload.cancelled": "Upload cancelled",
   "file.upload.cancelUpload": "Cancel Upload",
   "file.upload.progress": "Upload progress {progress}%",
+  "file.upload.batchProgress": "Uploading file {current} of {total}",
+  "file.upload.currentFile": "Current file: {name}",
   "file.upload.hint": "Large files are supported; keep this page open and avoid network changes while uploading.",
   "file.upload.selectedSize": "Selected file size: {size}",
   "file.delete.confirm.title": "Confirm Delete",

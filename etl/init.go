@@ -15,9 +15,11 @@ import (
 	selectColumnsProcessor "github.com/BernardSimon/etl-go/components/processors/selectColumns"
 	csvSink "github.com/BernardSimon/etl-go/components/sinks/csv"
 	dorisSink "github.com/BernardSimon/etl-go/components/sinks/doris"
+	httpSink "github.com/BernardSimon/etl-go/components/sinks/http"
 	jsonSink "github.com/BernardSimon/etl-go/components/sinks/json"
 	sqlSink "github.com/BernardSimon/etl-go/components/sinks/sql"
 	csvSource "github.com/BernardSimon/etl-go/components/sources/csv"
+	httpSource "github.com/BernardSimon/etl-go/components/sources/http"
 	jsonSource "github.com/BernardSimon/etl-go/components/sources/json"
 	sqlSource "github.com/BernardSimon/etl-go/components/sources/sql"
 	sqlVariable "github.com/BernardSimon/etl-go/components/variable/sql"
@@ -57,6 +59,7 @@ func RegisterComponents() error {
 	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorPostgre))
 	errs = append(errs, factory.RegisterSource(csvSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(jsonSource.SourceCreator))
+	errs = append(errs, factory.RegisterSource(httpSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorSqlite))
 
 	// 注册数据输出
@@ -65,6 +68,7 @@ func RegisterComponents() error {
 	errs = append(errs, factory.RegisterSink(csvSink.SinkCreator))
 	errs = append(errs, factory.RegisterSink(jsonSink.SinkCreator))
 	errs = append(errs, factory.RegisterSink(dorisSink.SinkCreator))
+	errs = append(errs, factory.RegisterSink(httpSink.SinkCreator))
 	errs = append(errs, factory.RegisterSink(sqlSink.SinkCreatorSqlite))
 
 	// 注册处理器

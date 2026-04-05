@@ -49,6 +49,7 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - `Source`
   - 从数据库查询读取数据
   - 从 CSV / JSON 文件读取数据
+  - 从 HTTP API 拉取数据
 - `Processors`
   - 类型转换
   - 行过滤
@@ -60,6 +61,7 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
   - 导出 CSV
   - 导出 JSON
   - 写入 Doris
+  - 推送到 HTTP API
 
 ### 3. 丰富的数据连接能力
 
@@ -75,6 +77,7 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - SQL Source
 - CSV Source
 - JSON Source
+- HTTP Source
 
 内置 Sink：
 
@@ -82,6 +85,7 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - CSV Sink
 - JSON Sink
 - Doris Stream Load Sink
+- HTTP Sink
 
 内置 Variable：
 
@@ -374,7 +378,15 @@ curl 'http://localhost:8080/api/v1/login' \
 4. 配置目标数据库 Sink
 5. 手动执行或定时执行
 
-### 场景三：数据清洗与脱敏导出
+### 场景三：从 HTTP API 拉取数据入库
+
+1. 新建任务
+2. 配置 HTTP Source，填写 API 地址、认证头、分页方式
+3. 可选添加 Processor 链进行数据转换
+4. 配置目标数据库 Sink
+5. 手动执行或定时执行
+
+### 场景四：数据清洗与脱敏导出
 
 1. 使用 SQL Source 读取原始数据
 2. 添加 `filterRows`、`convertType`、`maskData`
@@ -394,6 +406,7 @@ curl 'http://localhost:8080/api/v1/login' \
 - SQL
 - CSV
 - JSON
+- HTTP
 
 ### Processor
 
@@ -409,6 +422,7 @@ curl 'http://localhost:8080/api/v1/login' \
 - CSV
 - JSON
 - Doris
+- HTTP
 
 ### Executor
 
@@ -417,6 +431,130 @@ curl 'http://localhost:8080/api/v1/login' \
 ### Variable
 
 - SQL Variable
+
+## HTTP 组件详细说明
+
+### HTTP Source
+
+从 HTTP API 拉取 JSON 数据作为数据源，支持分页和嵌套数据提取。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `url` | 是 | - | 请求地址 |
+| `method` | 否 | `GET` | HTTP 方法（GET / POST） |
+| `headers` | 否 | - | 请求头，JSON 格式，如 `{"Authorization": "Bearer xxx"}` |
+| `body` | 否 | - | 请求体（POST 时使用），JSON 字符串 |
+| `pagination_type` | 否 | `none` | 分页方式：`none` / `offset` / `page` / `cursor` |
+| `page_size` | 否 | `100` | 每页记录数 |
+| `cursor_field` | 否 | `next_cursor` | 游标字段名（cursor 分页时使用），支持点分路径 |
+| `data_path` | 否 | - | 数据数组在响应 JSON 中的路径，如 `data.items` |
+
+#### 分页模式
+
+- **`none`**：只请求一次
+- **`offset`**：自动附加 `?offset=N&limit=M`，当返回数据量 < page_size 时停止
+- **`page`**：自动附加 `?page=N&page_size=M`，当返回数据量 < page_size 时停止
+- **`cursor`**：从响应中提取 cursor_field 值附加到下一次请求，cursor 为空时停止
+
+#### 示例
+
+```yaml
+# 基础用法 - 从 API 获取 JSON 数组
+source:
+  type: http
+  config:
+    url: "https://api.example.com/users"
+
+# 带认证和分页
+source:
+  type: http
+  config:
+    url: "https://api.example.com/orders"
+    headers: '{"Authorization": "Bearer my-token"}'
+    pagination_type: offset
+    page_size: "200"
+    data_path: data.list
+```
+
+### HTTP Sink
+
+将数据推送到 HTTP API，支持自定义请求体结构、签名验证和多种认证方式。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `url` | 是 | - | 目标 API 地址 |
+| `method` | 否 | `POST` | HTTP 方法（POST / PUT / PATCH） |
+| `headers` | 否 | - | 自定义请求头，JSON 格式 |
+| `auth_type` | 否 | `none` | 认证方式：`none` / `bearer` / `basic` / `api_key` |
+| `auth_value` | 否 | - | 认证凭据：Token / `user:password` / API Key 值 |
+| `api_key_name` | 否 | `X-API-Key` | API Key 的 Header 名称 |
+| `body_template` | 否 | - | 请求体模板（Go template 语法），为空时直接发送 JSON 数组 |
+| `send_mode` | 否 | `batch` | 发送模式：`batch`（整批数组）/ `single`（逐条对象） |
+
+#### body_template 详解
+
+通过 Go template 语法自定义请求体结构。不配置时，直接将数据作为 JSON 数组发送。
+
+**可用变量：**
+
+| 变量 | 说明 |
+|------|------|
+| `.DataJSON` | 数据的 JSON 字符串（batch 模式为数组，single 模式为单个对象） |
+| `.Timestamp` | 当前 Unix 时间戳（秒） |
+| `.TimestampMs` | 当前 Unix 时间戳（毫秒） |
+| `.ID` | 批次 ID |
+| `.Count` | 当前批次记录数 |
+
+**内置签名函数：**
+
+| 函数 | 用法 | 说明 |
+|------|------|------|
+| `hmacSHA256` | `{{hmacSHA256 .DataJSON "secret"}}` | HMAC-SHA256 签名 |
+| `md5` | `{{md5 .DataJSON}}` | MD5 哈希 |
+| `sha256` | `{{sha256 .DataJSON}}` | SHA-256 哈希 |
+| `concat` | `{{concat "a" "b"}}` | 拼接多个字符串 |
+| `toString` | `{{toString .Timestamp}}` | 将任意值转为字符串 |
+
+#### 示例
+
+```yaml
+# 基础用法 - 直接发送 JSON 数组
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/import"
+    auth_type: bearer
+    auth_value: "my-token"
+
+# 自定义包装结构
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/import"
+    body_template: '{"code": 0, "data": {{.DataJSON}}}'
+
+# 带时间戳和 HMAC 签名
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/import"
+    body_template: >
+      {"timestamp": {{.Timestamp}},
+       "sign": "{{hmacSHA256 (concat .DataJSON (toString .Timestamp)) "secret-key"}}",
+       "data": {{.DataJSON}}}
+
+# 逐条发送 + 自定义字段
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/record"
+    send_mode: single
+    body_template: '{"app_id": "myapp", "ts": {{.Timestamp}}, "record": {{.DataJSON}}}'
+```
 
 ## 安全能力
 
@@ -544,6 +682,7 @@ You can enable the following as needed:
 - `Source`
   - Read data from database queries
   - Read data from CSV / JSON files
+  - Fetch data from HTTP APIs
 - `Processors`
   - Type conversion
   - Row filtering
@@ -555,6 +694,7 @@ You can enable the following as needed:
   - Export to CSV
   - Export to JSON
   - Write to Doris
+  - Push to HTTP APIs
 
 ### 3. Rich Data Connectivity
 
@@ -570,6 +710,7 @@ Built-in Source:
 - SQL Source
 - CSV Source
 - JSON Source
+- HTTP Source
 
 Built-in Sink:
 
@@ -577,6 +718,7 @@ Built-in Sink:
 - CSV Sink
 - JSON Sink
 - Doris Stream Load Sink
+- HTTP Sink
 
 Built-in Variable:
 
@@ -869,7 +1011,15 @@ The current frontend already includes:
 4. Configure the target database Sink
 5. Run manually or on schedule
 
-### Scenario 3: Data Cleansing, Masking, and Export
+### Scenario 3: Fetch Data from HTTP API into Database
+
+1. Create a new task
+2. Configure HTTP Source with API URL, auth headers, and pagination type
+3. Optionally add a Processor chain for data transformation
+4. Configure the target database Sink
+5. Run manually or on schedule
+
+### Scenario 4: Data Cleansing, Masking, and Export
 
 1. Read raw data with SQL Source
 2. Add `filterRows`, `convertType`, and `maskData`
@@ -889,6 +1039,7 @@ The current frontend already includes:
 - SQL
 - CSV
 - JSON
+- HTTP
 
 ### Processor
 
@@ -904,6 +1055,7 @@ The current frontend already includes:
 - CSV
 - JSON
 - Doris
+- HTTP
 
 ### Executor
 
@@ -912,6 +1064,130 @@ The current frontend already includes:
 ### Variable
 
 - SQL Variable
+
+## HTTP Component Reference
+
+### HTTP Source
+
+Fetch JSON data from HTTP APIs as a data source, with pagination and nested data extraction.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `url` | Yes | - | HTTP request URL |
+| `method` | No | `GET` | HTTP method (GET / POST) |
+| `headers` | No | - | Request headers in JSON format, e.g. `{"Authorization": "Bearer xxx"}` |
+| `body` | No | - | Request body for POST requests, JSON string |
+| `pagination_type` | No | `none` | Pagination: `none` / `offset` / `page` / `cursor` |
+| `page_size` | No | `100` | Records per page |
+| `cursor_field` | No | `next_cursor` | Cursor field name in response (for cursor pagination), supports dot-separated path |
+| `data_path` | No | - | Dot-separated path to data array in response, e.g. `data.items` |
+
+#### Pagination Modes
+
+- **`none`**: Single request only
+- **`offset`**: Appends `?offset=N&limit=M`, stops when returned count < page_size
+- **`page`**: Appends `?page=N&page_size=M`, stops when returned count < page_size
+- **`cursor`**: Extracts cursor_field from response for next request, stops when cursor is empty
+
+#### Examples
+
+```yaml
+# Basic - fetch a JSON array from an API
+source:
+  type: http
+  config:
+    url: "https://api.example.com/users"
+
+# With auth and pagination
+source:
+  type: http
+  config:
+    url: "https://api.example.com/orders"
+    headers: '{"Authorization": "Bearer my-token"}'
+    pagination_type: offset
+    page_size: "200"
+    data_path: data.list
+```
+
+### HTTP Sink
+
+Push data to HTTP APIs with custom body structure, signature verification, and multiple auth methods.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `url` | Yes | - | Target API URL |
+| `method` | No | `POST` | HTTP method (POST / PUT / PATCH) |
+| `headers` | No | - | Custom request headers in JSON format |
+| `auth_type` | No | `none` | Authentication: `none` / `bearer` / `basic` / `api_key` |
+| `auth_value` | No | - | Credential: token string / `user:password` / API key value |
+| `api_key_name` | No | `X-API-Key` | Header name for API key auth |
+| `body_template` | No | - | Request body template (Go template syntax), sends raw JSON array if empty |
+| `send_mode` | No | `batch` | Send mode: `batch` (JSON array) / `single` (one request per record) |
+
+#### body_template Reference
+
+Customize the request body structure using Go template syntax. When not configured, data is sent as a plain JSON array.
+
+**Available Variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `.DataJSON` | JSON string of the data (array in batch mode, object in single mode) |
+| `.Timestamp` | Current Unix timestamp (seconds) |
+| `.TimestampMs` | Current Unix timestamp (milliseconds) |
+| `.ID` | Batch ID |
+| `.Count` | Number of records in the current batch |
+
+**Built-in Signing Functions:**
+
+| Function | Usage | Description |
+|----------|-------|-------------|
+| `hmacSHA256` | `{{hmacSHA256 .DataJSON "secret"}}` | HMAC-SHA256 signature |
+| `md5` | `{{md5 .DataJSON}}` | MD5 hash |
+| `sha256` | `{{sha256 .DataJSON}}` | SHA-256 hash |
+| `concat` | `{{concat "a" "b"}}` | Concatenate strings |
+| `toString` | `{{toString .Timestamp}}` | Convert any value to string |
+
+#### Examples
+
+```yaml
+# Basic - send JSON array directly
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/import"
+    auth_type: bearer
+    auth_value: "my-token"
+
+# Custom wrapper structure
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/import"
+    body_template: '{"code": 0, "data": {{.DataJSON}}}'
+
+# With timestamp and HMAC signature
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/import"
+    body_template: >
+      {"timestamp": {{.Timestamp}},
+       "sign": "{{hmacSHA256 (concat .DataJSON (toString .Timestamp)) "secret-key"}}",
+       "data": {{.DataJSON}}}
+
+# Single-record mode with custom fields
+sink:
+  type: http
+  config:
+    url: "https://api.example.com/record"
+    send_mode: single
+    body_template: '{"app_id": "myapp", "ts": {{.Timestamp}}, "record": {{.DataJSON}}}'
+```
 
 ## Security
 

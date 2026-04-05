@@ -42,6 +42,12 @@
 
         <div v-if="uploadState.fileList.length > 0" class="upload-meta">
           {{ t('file.upload.selectedSize', { size: formatSelectedSize() }) }}
+          <div v-if="uploadState.loading" class="upload-progress-text">
+            {{ t('file.upload.batchProgress', { current: uploadState.currentIndex, total: uploadState.totalFiles }) }}
+          </div>
+          <div v-if="uploadState.loading && uploadState.currentFileName" class="upload-progress-text">
+            {{ t('file.upload.currentFile', { name: uploadState.currentFileName }) }}
+          </div>
         </div>
 
         <a-progress
@@ -165,6 +171,9 @@ const uploadState = reactive({
   progress: 0,
   fileList: [] as any[],
   controller: null as AbortController | null,
+  currentFileName: "",
+  currentIndex: 0,
+  totalFiles: 0,
 });
 
 const columns = computed(() => [
@@ -310,29 +319,35 @@ const handleUpload = async () => {
   uploadState.loading = true;
   uploadState.progress = 0;
   uploadState.controller = new AbortController();
+  uploadState.totalFiles = uploadState.fileList.length;
+  uploadState.currentIndex = 0;
+  uploadState.currentFileName = "";
 
   try {
     const totalFiles = uploadState.fileList.length;
-    const results = await Promise.all(
-      uploadState.fileList.map(async (item, index) => {
-        const formData = new FormData();
-        formData.append("file", item.originFileObj || item);
-        const res = await uploadFile(formData, {
-          signal: uploadState.controller?.signal,
-          onUploadProgress: (event) => {
-            if (!event.total) {
-              return;
-            }
-            const currentFileProgress = event.loaded / event.total;
-            uploadState.progress = Math.min(
-              99,
-              Math.round(((index + currentFileProgress) / totalFiles) * 100)
-            );
-          },
-        });
-        return res.data;
-      })
-    );
+    const results: FileInfo[] = [];
+
+    for (const [index, item] of uploadState.fileList.entries()) {
+      uploadState.currentIndex = index + 1;
+      uploadState.currentFileName = item?.name || item?.originFileObj?.name || "";
+
+      const formData = new FormData();
+      formData.append("file", item.originFileObj || item);
+      const res = await uploadFile(formData, {
+        signal: uploadState.controller?.signal,
+        onUploadProgress: (event) => {
+          if (!event.total) {
+            return;
+          }
+          const currentFileProgress = event.loaded / event.total;
+          uploadState.progress = Math.min(
+            99,
+            Math.round(((index + currentFileProgress) / totalFiles) * 100)
+          );
+        },
+      });
+      results.push(res.data);
+    }
 
     uploadState.progress = 100;
     uploadState.fileList = [];
@@ -351,6 +366,9 @@ const handleUpload = async () => {
   } finally {
     uploadState.loading = false;
     uploadState.controller = null;
+    uploadState.currentFileName = "";
+    uploadState.currentIndex = 0;
+    uploadState.totalFiles = 0;
   }
 };
 
@@ -428,6 +446,10 @@ onUnmounted(() => {
   margin-top: 8px;
   color: #666;
   font-size: 13px;
+}
+
+.upload-progress-text {
+  margin-top: 4px;
 }
 
 .file-name-cell {

@@ -91,6 +91,7 @@
       </a-upload-dragger>
       <div v-if="uploadModal.fileList.length > 0" class="upload-meta">
         <div>{{ t('file.upload.selectedSize', { size: formatFileSize(getSelectedFileSize()) }) }}</div>
+        <div>{{ t('file.upload.currentFile', { name: getSelectedFileName() }) }}</div>
         <div v-if="uploadModal.loading">{{ t('file.upload.progress', { progress: uploadModal.progress }) }}</div>
       </div>
       <a-progress
@@ -258,6 +259,11 @@ const getSelectedFileSize = () => {
   const selectedFile = uploadModal.fileList[0];
   const rawFile = selectedFile?.originFileObj || selectedFile;
   return rawFile?.size || 0;
+};
+
+const getSelectedFileName = () => {
+  const selectedFile = uploadModal.fileList[0];
+  return selectedFile?.name || selectedFile?.originFileObj?.name || "-";
 };
 
 const cancelUpload = () => {
