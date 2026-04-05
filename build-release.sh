@@ -44,7 +44,7 @@ for target in "${TARGETS[@]}"; do
     ext=".exe"
   fi
 
-  target_dir="${OUTPUT_ROOT}/${goos}/${goarch}"
+  target_dir="${OUTPUT_ROOT}"
   binary_name="${APP_NAME}_${VERSION}_${goos}_${goarch}${ext}"
   output_file="${target_dir}/${binary_name}"
 
