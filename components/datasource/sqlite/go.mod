@@ -6,7 +6,7 @@ go 1.24.4
 
 require (
 	github.com/BernardSimon/etl-go/etl/core v0.0.0-00010101000000-000000000000
-	modernc.org/sqlite v1.40.1
+	github.com/glebarez/go-sqlite v1.21.2
 )
 
 require (

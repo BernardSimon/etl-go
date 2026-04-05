@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -110,7 +111,43 @@ func mustRandomHex(n int) string {
 }
 
 func configPath() string {
+	execPath := executableConfigPath()
+	cwdPath := workingDirectoryConfigPath()
+
+	switch {
+	case fileExists(execPath):
+		return execPath
+	case fileExists(cwdPath):
+		return cwdPath
+	case execPath != "":
+		return execPath
+	default:
+		return cwdPath
+	}
+}
+
+func executableConfigPath() string {
+	execFile, err := os.Executable()
+	if err != nil || execFile == "" {
+		return ""
+	}
+	resolvedExecFile, err := filepath.EvalSymlinks(execFile)
+	if err == nil && resolvedExecFile != "" {
+		execFile = resolvedExecFile
+	}
+	return filepath.Join(filepath.Dir(execFile), configFileName)
+}
+
+func workingDirectoryConfigPath() string {
 	return filepath.Join(".", configFileName)
+}
+
+func fileExists(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func applyEnvOverrides() {
