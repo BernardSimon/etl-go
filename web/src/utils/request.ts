@@ -3,6 +3,7 @@ import axios, {
   AxiosRequestConfig,
   AxiosResponse,
   AxiosError,
+  InternalAxiosRequestConfig,
 } from "axios";
 
 import { useUserStore } from "../stores/user";
@@ -10,6 +11,11 @@ import router from "../router";
 import { message } from "ant-design-vue";
 import i18n from "../i18n";
 import type { ApiErrorData } from "../types";
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+  skipAuthRefresh?: boolean;
+};
 
 export class ApiRequestError extends Error {
   code?: number;
@@ -31,6 +37,51 @@ const service: AxiosInstance = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+let refreshPromise: Promise<string> | null = null;
+
+const redirectToLogin = () => {
+  const currentPath = router.currentRoute.value.fullPath;
+  if (router.currentRoute.value.path !== "/login") {
+    router.push({
+      path: "/login",
+      query: { redirect: currentPath },
+    });
+  }
+};
+
+const handleRefreshFailure = () => {
+  const userStore = useUserStore();
+  userStore.resetUser();
+  message.error(i18n.global.t("request.authExpired"));
+  redirectToLogin();
+};
+
+const refreshAccessToken = async (): Promise<string> => {
+  const userStore = useUserStore();
+  if (!userStore.refreshToken) {
+    throw new Error("missing refresh token");
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = userStore
+      .refreshAccessToken()
+      .then((res) => res.data?.token || "")
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
+const shouldRefresh = (code?: number, status?: number, config?: RetryableRequestConfig) => {
+  if (!config || config._retry || config.skipAuthRefresh) {
+    return false;
+  }
+
+  return status === 401 || code === 3 || code === 4;
+};
 
 // 请求拦截器
 service.interceptors.request.use(
@@ -61,19 +112,29 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response: AxiosResponse) => {
     const res = response.data;
+    const originalRequest = response.config as RetryableRequestConfig;
 
     // 根据业务需求判断响应状态
     if (res && typeof res === "object" && "code" in res) {
       const success = res.code === 0 || res.code === 200;
       if (!success) {
-        // 处理认证过期，跳转到登录页
+        if (shouldRefresh(res.code, response.status, originalRequest)) {
+          return refreshAccessToken()
+            .then((token) => {
+              originalRequest._retry = true;
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers.Authorization = token;
+              return service(originalRequest);
+            })
+            .catch((refreshError) => {
+              handleRefreshFailure();
+              return Promise.reject(refreshError);
+            });
+        }
+
         if (res.code === 3 || res.code === 4) {
-          const userStore = useUserStore();
-          userStore.resetUser();
-          message.error(i18n.global.t("request.authExpired"));
-          router.push("/login");
+          handleRefreshFailure();
         } else {
-          // 统一显示后端返回的错误信息
           message.error(res.message || i18n.global.t("request.failed"));
         }
 
@@ -94,16 +155,29 @@ service.interceptors.response.use(
     const status = (error.response && error.response.status) || undefined;
     const code =
       (error.response && (error.response.data as any)?.code) || undefined;
-    
+
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    if (shouldRefresh(code, status, originalRequest)) {
+      return refreshAccessToken()
+        .then((token) => {
+          if (!originalRequest) {
+            throw error;
+          }
+          originalRequest._retry = true;
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = token;
+          return service(originalRequest);
+        })
+        .catch((refreshError) => {
+          handleRefreshFailure();
+          return Promise.reject(refreshError);
+        });
+    }
+
     // 处理认证相关错误
-    if (status === 401 || status === 4 || code === 3 || code === 4) {
-      const userStore = useUserStore();
-      userStore.resetUser();
-      router.push({
-        path: "/login",
-        query: { redirect: router.currentRoute.value.fullPath },
-      });
-      message.error(i18n.global.t("request.authExpired"));
+    if (status === 401 || code === 3 || code === 4) {
+      handleRefreshFailure();
     } else {
       // 统一显示错误信息
       const isTimeout = error.code === "ECONNABORTED" || error.message?.toLowerCase().includes("timeout");
@@ -147,7 +221,7 @@ export const request = {
   post<T = any>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig & { skipAuthRefresh?: boolean }
   ): Promise<T> {
     return service.post(url, data, config);
   },

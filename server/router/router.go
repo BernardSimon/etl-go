@@ -30,6 +30,7 @@ func Register(engine *gin.Engine) {
 	v1.POST("/login", func(c *gin.Context) {
 		AdminAPI(api.LoginWithRateLimit(c), true)(c)
 	})
+	v1.POST("/refresh-token", AdminAPI(api.RefreshToken, true))
 	v1.Use(api.AuthMiddleware)
 
 	// 数据源

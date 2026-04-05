@@ -41,12 +41,36 @@ func Login(req *types.LoginRequest, _ string) (interface{}, error) {
 		if err != nil {
 			return nil, errors.New("failed to generate token")
 		}
+		refreshToken, err := generateRefreshToken(req.Username)
+		if err != nil {
+			return nil, errors.New("failed to generate refresh token")
+		}
 		response := types.LoginResponse{
-			Token: token,
+			Token:        token,
+			RefreshToken: refreshToken,
 		}
 		return response, nil
 	}
 	return nil, errors.New("invalid username or password")
+}
+
+func RefreshToken(req *types.RefreshTokenRequest, _ string) (interface{}, error) {
+	userId, err := DecodeRefreshToken(req.RefreshToken)
+	if err != nil {
+		return nil, errors.New("invalid or expired refresh token")
+	}
+	token, err := generateToken(userId)
+	if err != nil {
+		return nil, errors.New("failed to generate token")
+	}
+	refreshToken, err := generateRefreshToken(userId)
+	if err != nil {
+		return nil, errors.New("failed to generate refresh token")
+	}
+	return types.LoginResponse{
+		Token:        token,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
 // LoginWithRateLimit wraps Login with per-IP rate limiting.
@@ -62,15 +86,25 @@ func LoginWithRateLimit(c *gin.Context) func(*types.LoginRequest, string) (inter
 }
 
 func generateToken(UserId string) (string, error) {
-	// 创建声明
 	notBefore := jwt.NewNumericDate(time.Now())
 	claims := &jwt.RegisteredClaims{
 		Subject:   UserId,
 		NotBefore: notBefore,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 6)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * 15)),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(config.Config.JwtSecret))
+}
+
+func generateRefreshToken(UserId string) (string, error) {
+	notBefore := jwt.NewNumericDate(time.Now())
+	claims := &jwt.RegisteredClaims{
+		Subject:   UserId,
+		NotBefore: notBefore,
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(config.Config.JwtSecret + "_refresh"))
 }
 
 func DecodeToken(tokenString string) (string, error) {
@@ -84,8 +118,21 @@ func DecodeToken(tokenString string) (string, error) {
 	if token == nil || !token.Valid {
 		return "", errors.New("invalid token")
 	}
-	userId := claims.Subject
-	return userId, nil
+	return claims.Subject, nil
+}
+
+func DecodeRefreshToken(tokenString string) (string, error) {
+	var claims jwt.RegisteredClaims
+	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
+		return []byte(config.Config.JwtSecret + "_refresh"), nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if token == nil || !token.Valid {
+		return "", errors.New("invalid refresh token")
+	}
+	return claims.Subject, nil
 }
 
 func AuthMiddleware(c *gin.Context) {

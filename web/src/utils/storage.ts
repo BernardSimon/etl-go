@@ -1,6 +1,7 @@
 // 本地存储工具类
 
 const TOKEN_KEY = 'ltts_token'
+const REFRESH_TOKEN_KEY = 'ltts_refresh_token'
 const USER_INFO_KEY = 'ltts_user_info'
 const LANGUAGE_KEY = 'ltts_language'
 
@@ -23,6 +24,27 @@ export const setToken = (token: string): void => {
  */
 export const removeToken = (): void => {
   localStorage.removeItem(TOKEN_KEY)
+}
+
+/**
+ * 获取 refresh token
+ */
+export const getRefreshToken = (): string | null => {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+/**
+ * 设置 refresh token
+ */
+export const setRefreshToken = (token: string): void => {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token)
+}
+
+/**
+ * 移除 refresh token
+ */
+export const removeRefreshToken = (): void => {
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
 /**
@@ -73,6 +95,7 @@ export const removeLanguage = (): void => {
  */
 export const clearStorage = (): void => {
   removeToken()
+  removeRefreshToken()
   removeUserInfo()
   removeLanguage()
 }
