@@ -1,4 +1,10 @@
+[# 中文](#中文说明) | [English](#english)
+
 # ETL-Go
+
+<a id="中文说明"></a>
+
+[切换到 English](#english)
 
 ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视化任务编排、可扩展组件体系、REST API、任务调度、运行日志、文件资产管理和模板化工作流能力。
 
@@ -486,3 +492,498 @@ ETL-Go 适合继续演进到：
 ## 致谢
 
 项目最初受到 [go-pocket-etl](https://github.com/changhe626/go-pocket-etl) 的启发，并在此基础上持续演进为一套更完整的任务平台与可视化 ETL 系统。
+
+---
+
+<a id="english"></a>
+
+# ETL-Go
+
+[Switch to 中文](#中文说明)
+
+ETL-Go is a modern ETL platform for data integration scenarios. It provides visual workflow orchestration, an extensible component system, REST APIs, task scheduling, runtime logs, file asset management, and template-based workflows.
+
+It is a good fit for scenarios such as:
+
+- Moving data reliably between databases, files, and analytics systems
+- Building scheduled sync, cleansing, masking, and format-conversion flows with a low learning curve
+- Needing a Go-based ETL foundation that is customizable, embeddable, and extensible
+- Wanting both a Web admin console and backend APIs
+
+## Why ETL-Go
+
+- Visual and programmable: manage tasks from the Web UI or integrate with your own platform through `/api/v1`.
+- Component-based architecture: DataSource, Source, Processor, Sink, Executor, and Variable are fully decoupled for easier extension.
+- Concurrent pipeline engine: built on Goroutines and Channels, with batch writes, stage decoupling, and cancellation propagation.
+- Production-oriented task features: supports manual runs, scheduled execution, run records, task templates, file management, and troubleshooting workflows.
+- Built-in file asset center: upload once and reuse files across task configs, datasource configs, and runtime logs.
+- Stronger type safety and lifecycle management: core contracts are strongly typed and context-aware, and blocking database/HTTP operations can respond to cancellation.
+- Ready for internationalization: both backend and frontend are prepared for Chinese and English support.
+
+## Core Features
+
+### 1. Visual Workflow Orchestration
+
+- Create manual and scheduled tasks
+- Reuse existing flows quickly with task templates
+- Duplicate existing tasks to create new ones
+- Manage complex flows with partitioned task configuration dialogs
+- Preview the final payload before saving
+
+### 2. End-to-End ETL Execution Chain
+
+A task can consist of the following stages:
+
+`Before Executor -> Source -> Processors -> Sink -> After Executor`
+
+You can enable the following as needed:
+
+- `Executor`
+  - Pre-run SQL preparation
+  - Post-run SQL cleanup
+- `Source`
+  - Read data from database queries
+  - Read data from CSV / JSON files
+- `Processors`
+  - Type conversion
+  - Row filtering
+  - Data masking
+  - Column renaming
+  - Column selection
+- `Sink`
+  - Write to databases
+  - Export to CSV
+  - Export to JSON
+  - Write to Doris
+
+### 3. Rich Data Connectivity
+
+Built-in DataSource:
+
+- MySQL
+- PostgreSQL
+- SQLite
+- Doris
+
+Built-in Source:
+
+- SQL Source
+- CSV Source
+- JSON Source
+
+Built-in Sink:
+
+- SQL Sink
+- CSV Sink
+- JSON Sink
+- Doris Stream Load Sink
+
+Built-in Variable:
+
+- SQL Variable for MySQL / PostgreSQL / SQLite
+
+### 4. Task Management for Real Business Use
+
+- Paginated task list with filters
+- Batch start, stop, and delete
+- Manual execution and Cron scheduling
+- Save, reuse, and delete task templates
+- Jump from tasks to run records and cross-reference execution history
+- Unified views for runtime parameters, execution results, and task files
+
+### 5. File-Driven Data Integration Experience
+
+ETL-Go does not treat file upload as an isolated feature. Instead, files are managed as platform assets:
+
+- Upload, search, delete, and download from the file management page
+- Select files directly for `file_id` / `file_ids` task parameters instead of manually entering IDs
+- Reuse the same file library for file-based datasource parameters
+- Optimized large-file upload pipeline to reduce timeouts and edge-case issues
+- Link runtime records with output files for easier inspection
+
+### 6. Engineering-Grade Stability Improvements
+
+The current engine already includes:
+
+- Concurrent-safe factory registry
+- Stable ordering of component type lists
+- Strongly typed datasource contracts
+- `context.Context` propagated through Source / Processor / Sink / Executor / Variable
+- Cancellation propagation for blocking SQL / HTTP operations
+- Shared datasource leases at the task level to avoid closing underlying connections too early
+- More reliable JSON / CSV / SQL output ordering and resource cleanup
+
+## Project Structure
+
+```text
+.
+├── components/          # Built-in component implementations
+│   ├── datasource/
+│   ├── executor/
+│   ├── processors/
+│   ├── sinks/
+│   ├── sources/
+│   └── variable/
+├── etl/
+│   ├── core/            # Core interfaces and abstractions
+│   ├── factory/         # Component registration and creation
+│   └── pipeline/        # Concurrent execution engine
+├── server/
+│   ├── api/             # REST API
+│   ├── config/          # Configuration loading
+│   ├── model/           # Data models
+│   ├── router/          # Route registration
+│   ├── task/            # Task orchestration and execution
+│   ├── types/           # Request/response structures
+│   └── utils/
+├── web/                 # Frontend admin console
+└── main.go              # Service entrypoint
+```
+
+## Architecture Highlights
+
+### Pipeline Engine
+
+ETL-Go uses a staged concurrent model to execute tasks:
+
+- Source handles reading
+- The Processor chain handles transformation
+- Sink handles batch writes
+- All stages are decoupled through Channels
+- Cancellation signals are propagated through `context.Context`
+
+This makes it suitable for both small to medium scheduled sync jobs and internal data automation platforms.
+
+### Component Factory
+
+All built-in and custom components are registered through the factory. You do not need large `switch case` blocks in business logic. Components are created directly by type name.
+
+### Task Assembly Layer
+
+Before execution, the task assembly layer handles:
+
+- Parameter construction
+- File parameter resolution
+- Variable substitution
+- Datasource initialization
+- Shared datasource reuse
+- Pipeline assembly and execution
+
+## Quick Start
+
+### Option 1: Run the Backend Service Directly
+
+Suitable if you only need the API or already have a separate frontend.
+
+```bash
+git clone https://github.com/BernardSimon/etl-go.git
+cd etl-go
+go build -o etl-go .
+./etl-go
+```
+
+Default API address:
+
+- `http://localhost:8080`
+
+### Option 2: Run Backend and Frontend Separately for Development
+
+Suitable for local development, integration testing, and customization.
+
+#### 1. Start the Backend
+
+```bash
+go build -o etl-go .
+./etl-go
+```
+
+#### 2. Start the Frontend
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Default addresses:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8080`
+
+### Option 3: Serve Built-In Web Static Assets
+
+If you want the backend to serve the frontend static files directly, build the frontend first:
+
+```bash
+cd web
+npm install
+npm run build
+cd ..
+go build -o etl-go .
+./etl-go
+```
+
+The backend can also serve the Web UI according to the `runWeb` and `webUrl` settings.
+
+## Default Login
+
+On first startup, use the default administrator account from [config.yaml](/Users/szy/Desktop/code/etl-go/config.yaml):
+
+- Username: `admin`
+- Password: `password123`
+
+Be sure to change these credentials in production.
+
+## Configuration
+
+The project uses [config.yaml](/Users/szy/Desktop/code/etl-go/config.yaml) in the repository root by default.
+
+Example:
+
+```yaml
+username: admin
+password: password123
+jwtSecret: your-jwt-secret
+aesKey: your-aes-key
+initDb: false
+logLevel: dev
+
+log:
+  filename: ./log/app.log
+  maxSize: 20
+  maxBackups: 3
+  maxAge: 7
+  compress: true
+
+database:
+  path: ./data.db
+  maxOpenConns: 10
+  maxIdleConns: 5
+  connMaxLifetime: 300
+
+pipeline:
+  batchSize: 1000
+  channelSize: 10000
+
+serverUrl: 0.0.0.0:8080
+runWeb: false
+webUrl: 0.0.0.0:8081
+
+corsOrigins:
+  - http://localhost:8081
+  - http://localhost:5173
+```
+
+### Key Configuration Items
+
+- `database`
+  - Platform metadata database configuration, SQLite by default
+- `pipeline.batchSize`
+  - Number of records written per sink batch
+- `pipeline.channelSize`
+  - Buffer size of pipeline channels
+- `serverUrl`
+  - Listening address for the API service
+- `runWeb`
+  - Whether the backend should serve the Web UI directly
+- `webUrl`
+  - Listening address for the built-in Web service
+- `corsOrigins`
+  - Frontend origins allowed for cross-origin requests
+
+### Environment Variable Overrides
+
+These environment variables override values in the config file:
+
+- `ETL_USERNAME`
+- `ETL_PASSWORD`
+- `ETL_JWT_SECRET`
+- `ETL_AES_KEY`
+- `ETL_SERVER_URL`
+- `ETL_LOG_LEVEL`
+
+## REST API
+
+The backend API uses a unified prefix:
+
+- `/api/v1`
+
+Main capabilities include:
+
+- Login and authentication
+- Datasource management
+- System variable management
+- Task management
+- Task template management
+- Run record management
+- File management
+- Component metadata queries
+
+Example login request:
+
+```bash
+curl 'http://localhost:8080/api/v1/login' \
+  -H 'Accept-Language: zh' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"username":"admin","password":"password123"}'
+```
+
+## Web Admin Console
+
+The frontend admin console covers the core daily operations:
+
+- Datasource management
+- Variable management
+- Workflow management
+- Task templates
+- Runtime logs
+- File management
+- Language switching
+
+The current frontend already includes:
+
+- Full RESTful API integration
+- Complete Chinese/English internationalization
+- Field-level form error feedback
+- Unified file library selection
+- Better mobile and accessibility support
+- Runtime log details and auto refresh
+
+## Suggested Usage Paths
+
+### Scenario 1: Database-to-Database Sync
+
+1. Create a source database DataSource
+2. Create a target database DataSource
+3. Create a new task
+4. Configure SQL Source
+5. Optionally add a Processor chain
+6. Configure SQL Sink
+7. Save and run
+
+### Scenario 2: Import Files into a Database
+
+1. Upload CSV / JSON files in file management
+2. Create a task or datasource configuration
+3. Select the file in file parameters
+4. Configure the target database Sink
+5. Run manually or on schedule
+
+### Scenario 3: Data Cleansing, Masking, and Export
+
+1. Read raw data with SQL Source
+2. Add `filterRows`, `convertType`, and `maskData`
+3. Output to CSV / JSON / Doris
+
+## Built-In Components
+
+### DataSource
+
+- MySQL
+- PostgreSQL
+- SQLite
+- Doris
+
+### Source
+
+- SQL
+- CSV
+- JSON
+
+### Processor
+
+- `convertType`
+- `filterRows`
+- `maskData`
+- `renameColumn`
+- `selectColumns`
+
+### Sink
+
+- SQL
+- CSV
+- JSON
+- Doris
+
+### Executor
+
+- SQL Executor
+
+### Variable
+
+- SQL Variable
+
+## Security
+
+- JWT authentication
+- Admin login protection
+- Encrypted storage for sensitive fields
+- SQL execution safety validation
+- File access path resolution control
+- Internationalized error responses
+
+## Extensibility
+
+ETL-Go is well suited for packaging into an industry-specific platform. You can:
+
+- Add custom DataSource implementations
+- Add custom Source / Sink / Processor implementations
+- Register your own Variable / Executor
+- Reuse the existing pipeline engine
+- Build your own portal or SaaS admin platform on top of `/api/v1`
+
+Components are registered through `etl/factory` and only need to implement the unified interfaces.
+
+## Development and Testing
+
+### Build
+
+```bash
+go build ./...
+```
+
+### Test
+
+```bash
+go test ./...
+```
+
+### Frontend Build
+
+```bash
+cd web
+npm install
+npm run build
+```
+
+## Who Is It For
+
+- Data engineers
+- Backend engineers
+- Platform engineering teams
+- Small and medium teams building internal data platforms
+- Business teams needing a low-cost ETL platform foundation
+
+## Roadmap
+
+ETL-Go can continue evolving toward:
+
+- More built-in components
+- More powerful task template systems
+- Stronger audit and permission features
+- Richer data quality validation
+- More detailed runtime observability and alerting
+
+## Contributing
+
+Issues, design discussions, and Pull Requests are all welcome.
+
+If you are building your own data platform with ETL-Go, sharing your experience is also very welcome.
+
+## License
+
+This project is licensed under the Apache License 2.0.
+
+## Acknowledgements
+
+The project was originally inspired by [go-pocket-etl](https://github.com/changhe626/go-pocket-etl) and has since evolved into a more complete task platform and visual ETL system.
