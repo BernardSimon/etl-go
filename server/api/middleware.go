@@ -4,14 +4,23 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"io"
+	"net/url"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/BernardSimon/etl-go/server/config"
 	types "github.com/BernardSimon/etl-go/server/types"
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+var timeNow = time.Now
 
 func GetRealIP(c *gin.Context) string {
 	ip := c.Request.Header.Get("X-Forwarded-For")
@@ -80,6 +89,7 @@ func RequestResponseMiddleware(c *gin.Context) {
 	} else {
 		stringBody := string(requestBody)
 		log.Body = stringBody
+		c.Set("rawBody", stringBody)
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 	}
 	// 执行后续处理
@@ -161,4 +171,88 @@ func Md5(str string) string {
 	hash := md5.New()
 	_, _ = io.WriteString(hash, str)
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func ValidateSignature(c *gin.Context) error {
+	if !SignatureAuthEnabled() {
+		return fmt.Errorf("api signature auth disabled")
+	}
+
+	query := c.Request.URL.Query()
+	timestamp := query.Get("timestamp")
+	sign := query.Get("sign")
+
+	if timestamp == "" || sign == "" {
+		return fmt.Errorf("missing api signature parameters")
+	}
+
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid api timestamp")
+	}
+	now := timeNow().Unix()
+	if absInt64(now-ts) > 60 {
+		return fmt.Errorf("api signature expired")
+	}
+
+	body := ""
+	if rawBody, exists := c.Get("rawBody"); exists {
+		body, _ = rawBody.(string)
+	}
+	expectedSign := buildSignature(query, body)
+	if !strings.EqualFold(expectedSign, sign) {
+		return fmt.Errorf("invalid api signature")
+	}
+	return nil
+}
+
+func HasSignatureParams(c *gin.Context) bool {
+	query := c.Request.URL.Query()
+	return query.Get("timestamp") != "" || query.Get("sign") != ""
+}
+
+func SignatureAuthEnabled() bool {
+	return strings.TrimSpace(config.Config.ApiSecret) != ""
+}
+
+func buildSignature(query url.Values, body string) string {
+	queryParts := make([]string, 0, len(query))
+	keys := make([]string, 0, len(query))
+	for key := range query {
+		if key == "sign" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		values := append([]string(nil), query[key]...)
+		sort.Strings(values)
+		for _, value := range values {
+			queryParts = append(queryParts, key+"="+value)
+		}
+	}
+
+	normalizedBody := normalizeBody(body)
+	signSource := strings.Join(queryParts, "&") + "&body=" + normalizedBody + "&secret=" + config.Config.ApiSecret
+	return Md5(signSource)
+}
+
+func normalizeBody(body string) string {
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" {
+		return ""
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, []byte(trimmed)); err == nil {
+		return compacted.String()
+	}
+	return trimmed
+}
+
+func absInt64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

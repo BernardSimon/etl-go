@@ -253,6 +253,7 @@ go build -o etl-go .
 username: admin
 password: password123
 jwtSecret: your-jwt-secret
+apiSecret: ""
 aesKey: your-aes-key
 initDb: false
 logLevel: dev
@@ -297,6 +298,8 @@ corsOrigins:
   - 是否由后端直接提供 Web 页面
 - `webUrl`
   - 内建 Web 服务监听地址
+- `apiSecret`
+  - API 签名鉴权密钥；为空时表示不启用签名鉴权
 - `corsOrigins`
   - 允许跨域访问的前端地址
 
@@ -307,6 +310,7 @@ corsOrigins:
 - `ETL_USERNAME`
 - `ETL_PASSWORD`
 - `ETL_JWT_SECRET`
+- `ETL_API_SECRET`
 - `ETL_AES_KEY`
 - `ETL_SERVER_URL`
 - `ETL_LOG_LEVEL`
@@ -335,6 +339,94 @@ curl 'http://localhost:8080/api/v1/login' \
   -H 'Accept-Language: zh' \
   -H 'Content-Type: application/json' \
   --data-raw '{"username":"admin","password":"password123"}'
+```
+
+### API 签名鉴权
+
+对于非 Web 场景的服务端 API 调用，受保护接口除了支持 `Authorization` token，也支持 query 参数签名鉴权。
+
+行为说明：
+
+- 当 `apiSecret` 已配置且请求中带有 `timestamp` 或 `sign` 时，服务端按签名方式校验
+- 当 `apiSecret` 未配置时，签名鉴权整体关闭，服务端继续按原有 token 方式鉴权
+- `apiSecret` 只用于调用方本地和服务端本地计算签名，不应放进 query、body 或 header
+
+启用方式：
+
+- 在 `config.yaml` 中配置 `apiSecret`
+- 或设置环境变量 `ETL_API_SECRET`
+- 当两者同时存在时，以环境变量 `ETL_API_SECRET` 为准
+- 当 `apiSecret` 为空字符串或未填写时，签名鉴权不启用，接口仍只按原有 token 方式鉴权
+
+签名参数：
+
+- `timestamp`
+- `sign`
+
+校验规则：
+
+- `timestamp` 使用 Unix 秒级时间戳
+- 客户端与服务端时间差必须在 60 秒内
+- `sign` 使用 MD5
+- 请求 query 中不传 `apiSecret`
+- 签名内容由“除 `sign` 外的全部 query 参数” + “请求 body” + “配置中的 `apiSecret`”共同组成
+
+签名拼接规则：
+
+1. 取全部 query 参数，排除 `sign`
+2. 按参数名升序排序；同名多值时按值升序排序
+3. 拼接为 `k=v&k2=v2`
+4. body 为空时按空字符串参与签名；body 为 JSON 时服务端会先压缩成无空白的紧凑 JSON 后再参与签名
+5. 将服务端配置的 `apiSecret` 追加到待签名字符串末尾
+6. 最终待签名字符串格式为：`<sorted_query_string>&body=<normalized_body>&secret=<apiSecret>`
+7. 对该字符串做 MD5，得到 `sign`
+
+示例：
+
+假设：
+
+- `apiSecret=demo-secret`
+- 请求路径：`/api/v1/tasks?page_no=1&page_size=10`
+- 请求 body：`{"name":"demo","enabled":true}`
+- 当前时间戳：`1712300000`
+
+则参与签名的 query 为：
+
+```text
+page_no=1&page_size=10&timestamp=1712300000
+```
+
+规范化后的 body 为：
+
+```text
+{"name":"demo","enabled":true}
+```
+
+最终待签名字符串为：
+
+```text
+page_no=1&page_size=10&timestamp=1712300000&body={"name":"demo","enabled":true}&secret=demo-secret
+```
+
+可以这样生成签名：
+
+```bash
+SIGN_SOURCE='page_no=1&page_size=10&timestamp=1712300000&body={"name":"demo","enabled":true}&secret=demo-secret'
+SIGN=$(printf '%s' "$SIGN_SOURCE" | openssl dgst -md5 | awk '{print $2}')
+```
+
+调用示例：
+
+```bash
+TIMESTAMP=$(date +%s)
+BODY='{"name":"demo","enabled":true}'
+QUERY="page_no=1&page_size=10&timestamp=${TIMESTAMP}"
+SIGN_SOURCE="${QUERY}&body=${BODY}&secret=demo-secret"
+SIGN=$(printf '%s' "$SIGN_SOURCE" | openssl dgst -md5 | awk '{print $2}')
+
+curl "http://localhost:8080/api/v1/tasks?${QUERY}&sign=${SIGN}" \
+  -H 'Content-Type: application/json' \
+  --data-raw "${BODY}"
 ```
 
 ## Web 管理台

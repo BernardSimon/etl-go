@@ -35,6 +35,7 @@ type configModel struct {
 	Username    string         `yaml:"username"`
 	Password    string         `yaml:"password"`
 	JwtSecret   string         `yaml:"jwtSecret"`
+	ApiSecret   string         `yaml:"apiSecret"`
 	AesKey      string         `yaml:"aesKey"`
 	InitDb      bool           `yaml:"initDb"`
 	LogLevel    string         `yaml:"logLevel"` // dev or prod
@@ -56,7 +57,7 @@ func init() {
 }
 
 // LoadConfig reads config.yaml and populates the global Config.
-// Environment variables ETL_USERNAME, ETL_PASSWORD, ETL_JWT_SECRET, ETL_AES_KEY
+// Environment variables ETL_USERNAME, ETL_PASSWORD, ETL_JWT_SECRET, ETL_API_SECRET, ETL_AES_KEY
 // take precedence over values in the config file.
 func LoadConfig() error {
 	data, err := os.ReadFile("./config.yaml")
@@ -77,6 +78,9 @@ func LoadConfig() error {
 	}
 	if v := os.Getenv("ETL_JWT_SECRET"); v != "" {
 		Config.JwtSecret = v
+	}
+	if v := os.Getenv("ETL_API_SECRET"); v != "" {
+		Config.ApiSecret = v
 	}
 	if v := os.Getenv("ETL_AES_KEY"); v != "" {
 		Config.AesKey = v

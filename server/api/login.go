@@ -136,6 +136,16 @@ func DecodeRefreshToken(tokenString string) (string, error) {
 }
 
 func AuthMiddleware(c *gin.Context) {
+	if err := ValidateSignature(c); err == nil {
+		c.Next()
+		return
+	} else if SignatureAuthEnabled() && HasSignatureParams(c) {
+		c.Set("code", 3)
+		c.Set("message", err.Error())
+		c.Abort()
+		return
+	}
+
 	token := c.GetString("token")
 	// Support "Bearer <token>" format
 	if strings.HasPrefix(token, "Bearer ") {
@@ -152,6 +162,18 @@ func AuthMiddleware(c *gin.Context) {
 }
 
 func AuthMiddlewareFile(c *gin.Context) {
+	if err := ValidateSignature(c); err == nil {
+		c.Next()
+		return
+	} else if SignatureAuthEnabled() && HasSignatureParams(c) {
+		c.JSON(401, gin.H{
+			"code":    3,
+			"message": err.Error(),
+		})
+		c.Abort()
+		return
+	}
+
 	token := c.Query("token")
 	_, err := DecodeToken(token)
 	if err != nil {
