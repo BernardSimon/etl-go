@@ -34,12 +34,17 @@ import (
 var staticFiles embed.FS
 
 func main() {
-	// 确保配置已正确加载
-	if config.Config.JwtSecret == "" {
-		if err := config.LoadConfig(); err != nil {
-			fmt.Printf("Failed to load config: %v\n", err)
-			os.Exit(1)
-		}
+	created, err := config.EnsureConfig()
+	if err != nil {
+		fmt.Printf("Failed to initialize config: %v\n", err)
+		os.Exit(1)
+	}
+	if created {
+		fmt.Println("Config file not found. A new config.yaml has been initialized with secure defaults.")
+	}
+	if err := config.EnsureRuntimePaths(); err != nil {
+		fmt.Printf("Failed to prepare runtime directories: %v\n", err)
+		os.Exit(1)
 	}
 	// 弱密码警告
 	if config.Config.Password == "password123" {
