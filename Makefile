@@ -1,8 +1,12 @@
-.PHONY: build test race lint vet clean
+.PHONY: build release test race lint vet clean
 
 # Build the project
 build:
 	go build -o bin/etl-go .
+
+# Build release binaries for all supported platforms
+release:
+	./build-release.sh
 
 # Run all tests
 test:
