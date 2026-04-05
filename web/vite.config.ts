@@ -8,7 +8,6 @@ import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
  
 const __dirname = dirname(fileURLToPath(import.meta.url)) 
 export default defineConfig( () => ({
-  // base: command === 'build' ? '/etlApi/' : '/',
   base: '/',
   plugins: [
     vue(),
@@ -42,4 +41,3 @@ export default defineConfig( () => ({
   //   },
   // },
 }))
-
