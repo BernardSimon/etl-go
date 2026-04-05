@@ -186,15 +186,15 @@ func startService(startWeb bool) {
 }
 
 func openBrowser(url string) {
+	localUrl := strings.ReplaceAll(url, "0.0.0.0", "localhost")
 	var err error
 	switch runtime.GOOS {
 	case "linux":
-		err = exec.Command("xdg-open", url).Start()
+		err = exec.Command("xdg-open", localUrl).Start()
 	case "windows":
-		winUrl := strings.Replace(url, "0.0.0.0", "127.0.0.1", -1)
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", winUrl).Start()
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", localUrl).Start()
 	case "darwin":
-		err = exec.Command("open", url).Start()
+		err = exec.Command("open", localUrl).Start()
 	default:
 		zap.L().Warn(fmt.Sprintf("Unknown OS: %s, Failed To Init Web Url", runtime.GOOS), zap.String("service", "system"), zap.String("name", config.Ip))
 		return
