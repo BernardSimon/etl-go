@@ -1,7 +1,7 @@
 package model
 
 import (
-	_type "github.com/BernardSimon/etl-go/server/type"
+	types "github.com/BernardSimon/etl-go/server/types"
 
 	"gorm.io/gorm"
 )
@@ -11,7 +11,7 @@ type Task struct {
 	DeletedAt       gorm.DeletedAt  `gorm:"index"`
 	Name            string          `json:"mission_name" gorm:"size:255"`
 	Cron            string          `json:"cron" gorm:"size:40"`
-	Data            *_type.TaskData `json:"data" gorm:"type:json"`
+	Data            *types.TaskData `json:"data" gorm:"type:json"`
 	Status          int             `json:"status" gorm:"default:0;size:2"` // 0:暂存 1:调度中 2:错误
 	LastRunTime     *CustomTime     `json:"last_run_time"`
 	LastSuccessTime *CustomTime     `json:"last_success_time"`
@@ -31,5 +31,5 @@ type TaskRecord struct {
 	StartTime *CustomTime     `json:"start_time"`
 	EndTime   *CustomTime     `json:"end_time"`
 	Message   string          `json:"message"`
-	Data      *_type.TaskData `json:"data" gorm:"type:json"`
+	Data      *types.TaskData `json:"data" gorm:"type:json"`
 }

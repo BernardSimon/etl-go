@@ -3,8 +3,8 @@
 
     <div class="login-box">
       <a-radio-group class="language-select" v-model:value="userStore.language" @change="changeLanguage" button-style="solid" size="small">
-        <a-radio-button value="zh">中文</a-radio-button>
-        <a-radio-button value="en">English</a-radio-button>
+        <a-radio-button value="zh">{{ $t('layout.language.zh') }}</a-radio-button>
+        <a-radio-button value="en">{{ $t('layout.language.en') }}</a-radio-button>
       </a-radio-group>
       <div class="login-header">
 
@@ -19,7 +19,6 @@
         class="login-form"
         @finish="handleLogin"
       >
-        <template v-if="!showCodeInput">
           <a-form-item name="username">
             <a-input
               v-model:value="loginForm.username"
@@ -46,9 +45,15 @@
               </template>
             </a-input-password>
           </a-form-item>
-        </template>
 
         <a-form-item>
+          <a-alert
+            v-if="loginError"
+            :message="loginError"
+            type="error"
+            show-icon
+            style="margin-bottom: 16px"
+          />
           <a-button
             type="primary"
             size="large"
@@ -57,16 +62,14 @@
             :loading="loading"
             block
           >
-            {{
-              $t('login.btn')
-            }}
+            {{ $t('login.btn') }}
           </a-button>
 
         </a-form-item>
       </a-form>
 
       <div class="login-footer">
-        <a href="https://github.com/BernardSimon/etl-go" target="_blank"  class="text-gray-400">© 2025 ETL-GO</a>
+        <a href="https://github.com/BernardSimon/etl-go" target="_blank"  class="text-gray-400">{{ $t('login.copyright') }}</a>
 
       </div>
     </div>
@@ -75,7 +78,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "../stores/user";
 import { message } from "ant-design-vue";
 import { UserOutlined, LockOutlined } from "@ant-design/icons-vue";
@@ -83,11 +86,9 @@ import type { LoginRequest } from "../types";
 import type { Rule } from "ant-design-vue/es/form";
 import { useI18n } from "vue-i18n";
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
-
-// 是否显示验证码输入框
-const showCodeInput = ref(false);
 
 // 登录表单数据
 const loginForm = reactive<LoginRequest>({
@@ -97,6 +98,7 @@ const loginForm = reactive<LoginRequest>({
 
 // 加载状态
 const loading = ref(false);
+const loginError = ref("");
 
 // 表单验证规则
 const getLoginRules = (): Record<string, Rule[]> => ({
@@ -110,16 +112,19 @@ const getLoginRules = (): Record<string, Rule[]> => ({
 
 // 处理登录 
 const handleLogin = async () => {
+  loginError.value = "";
   loading.value = true;
   try {
     let res:any;
       res = await userStore.login({ username: loginForm.username, password: loginForm.password });
       if (res && res.code === 0) {
         message.success(t("login.success"));
-        await router.push("/");
+        const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "/";
+        await router.push(redirect);
         return;
       }
   } catch (error: any) { 
+    loginError.value = error?.message || t("login.error");
     console.error(t("login.error"), error);
   } finally {
     loading.value = false;

@@ -2,11 +2,9 @@
   <a-modal
       :open="open"
       :title="title"
-      width="900px"
+      :width="isNarrowScreen ? '96vw' : '900px'"
       :style="{ top: '20px' }"
-      @ok="handleOk"
       @cancel="handleCancel"
-      :footer="mode === 'read' ? null : undefined"
       :destroyOnClose="true"
   >
     <div class="modal-content" :class="{ 'vertical-layout': isNarrowScreen }">
@@ -25,32 +23,41 @@
             class="workflow-form"
             :disabled="mode === 'read'"
         >
-          <!-- 任务名称 -->
-          <a-form-item
-              :label="t('missionConfig.missionName.label')"
-              name="mission_name"
-          >
-            <a-input
-                v-model:value="formData.mission_name"
-                :placeholder="t('missionConfig.missionName.placeholder')"
-                :disabled="mode === 'read'"
-            />
-          </a-form-item>
+          <a-collapse v-model:activeKey="activeSections" class="config-collapse" ghost>
+            <a-collapse-panel key="basic" :header="t('missionConfig.basic.title')">
+              <div class="section-intro">
+                {{ t('missionConfig.basic.description') }}
+              </div>
+              <a-form-item
+                  :label="t('missionConfig.missionName.label')"
+                  name="mission_name"
+              >
+                <a-input
+                    v-model:value="formData.mission_name"
+                    :placeholder="t('missionConfig.missionName.placeholder')"
+                    :disabled="mode === 'read'"
+                />
+              </a-form-item>
 
-          <!-- 调度规则（仅定时任务显示） -->
-          <a-form-item
-              v-if="showCronField"
-              :label="t('missionConfig.cron.label')"
-              name="cron"
-          >
-            <a-input
-                v-model:value="formData.cron"
-                :placeholder="t('missionConfig.cron.placeholder')"
-            />
-          </a-form-item>
+              <a-form-item
+                  v-if="showCronField"
+                  :label="t('missionConfig.cron.label')"
+                  name="cron"
+              >
+                <a-input
+                    v-model:value="formData.cron"
+                    :placeholder="t('missionConfig.cron.placeholder')"
+                />
+              </a-form-item>
+              <div v-if="showCronField" class="section-example">
+                {{ t('missionConfig.cron.example') }}
+              </div>
+            </a-collapse-panel>
 
-          <!-- Before Execute Section -->
-          <a-card size="small" :title="t('missionConfig.beforeTask.title')" class="section-card">
+            <a-collapse-panel key="before" :header="t('missionConfig.beforeTask.title')">
+              <div class="section-intro">
+                {{ t('missionConfig.beforeTask.description') }}
+              </div>
             <a-row :gutter="16">
               <a-col :span="12">
                 <a-form-item
@@ -118,7 +125,33 @@
                         :rules="getValidationRules(param)"
                         style="margin-bottom: 12px;"
                     >
+                      <template v-if="isFileParam(param)">
+                        <div class="file-param-field">
+                          <div v-if="getSelectedFilesForParam(param).length" class="selected-file-tags">
+                            <a-tag
+                              v-for="item in getSelectedFilesForParam(param)"
+                              :key="item.id"
+                              :closable="mode !== 'read'"
+                              @close.prevent="removeSelectedFile(param, item.id)"
+                            >
+                              {{ item.name }}
+                            </a-tag>
+                          </div>
+                          <div v-if="mode !== 'read'" class="file-param-actions">
+                            <a-button @click="openFileLibrary(param)">
+                              {{ t('missionConfig.fileSelector.choose') }}
+                            </a-button>
+                            <a-button
+                              v-if="String(formData.before_execute.params[index].value || '').trim()"
+                              @click="clearFileParam(param)"
+                            >
+                              {{ t('missionConfig.fileSelector.clear') }}
+                            </a-button>
+                          </div>
+                        </div>
+                      </template>
                       <a-textarea
+                          v-else
                           v-model:value="formData.before_execute.params[index].value"
                           :auto-size="{ minRows: 1, maxRows: 6 }"
                           :placeholder="getPlaceholder(param)"
@@ -128,15 +161,17 @@
                     </a-form-item>
                   </a-col>
                 </a-row>
-                <div v-if="param.description" class="param-description">
-                  {{ param.description }}
+                <div v-if="getParamDescription(param)" class="param-description">
+                  {{ getParamDescription(param) }}
                 </div>
               </div>
             </div>
-          </a-card>
+            </a-collapse-panel>
 
-          <!-- Source Section -->
-          <a-card size="small" :title="t('missionConfig.source.title')" class="section-card">
+            <a-collapse-panel key="source" :header="t('missionConfig.source.title')">
+              <div class="section-intro">
+                {{ t('missionConfig.source.description') }}
+              </div>
             <a-row :gutter="16">
               <a-col :span="12">
                 <a-form-item
@@ -204,7 +239,33 @@
                         :rules="getValidationRules(param)"
                         style="margin-bottom: 12px;"
                     >
+                      <template v-if="isFileParam(param)">
+                        <div class="file-param-field">
+                          <div v-if="getSelectedFilesForParam(param).length" class="selected-file-tags">
+                            <a-tag
+                              v-for="item in getSelectedFilesForParam(param)"
+                              :key="item.id"
+                              :closable="mode !== 'read'"
+                              @close.prevent="removeSelectedFile(param, item.id)"
+                            >
+                              {{ item.name }}
+                            </a-tag>
+                          </div>
+                          <div v-if="mode !== 'read'" class="file-param-actions">
+                            <a-button @click="openFileLibrary(param)">
+                              {{ t('missionConfig.fileSelector.choose') }}
+                            </a-button>
+                            <a-button
+                              v-if="String(formData.source.params[index].value || '').trim()"
+                              @click="clearFileParam(param)"
+                            >
+                              {{ t('missionConfig.fileSelector.clear') }}
+                            </a-button>
+                          </div>
+                        </div>
+                      </template>
                       <a-textarea
+                          v-else
                           v-model:value="formData.source.params[index].value"
                           :auto-size="{ minRows: 1, maxRows: 6 }"
                           :placeholder="getPlaceholder(param)"
@@ -214,15 +275,17 @@
                     </a-form-item>
                   </a-col>
                 </a-row>
-                <div v-if="param.description" class="param-description">
-                  {{ param.description }}
+                <div v-if="getParamDescription(param)" class="param-description">
+                  {{ getParamDescription(param) }}
                 </div>
               </div>
             </div>
-          </a-card>
+            </a-collapse-panel>
 
-          <!-- Processor Section -->
-          <a-card size="small" :title="t('missionConfig.processor.title')" class="section-card">
+            <a-collapse-panel key="processor" :header="t('missionConfig.processor.title')">
+              <div class="section-intro">
+                {{ t('missionConfig.processor.description') }}
+              </div>
             <div
                 v-for="(processor, pIndex) in formData.processors"
                 :key="pIndex"
@@ -286,7 +349,33 @@
                           :rules="getValidationRules(param)"
                           style="margin-bottom: 12px;"
                       >
+                        <template v-if="isFileParam(param)">
+                          <div class="file-param-field">
+                            <div v-if="getSelectedFilesForParam(param).length" class="selected-file-tags">
+                              <a-tag
+                                v-for="item in getSelectedFilesForParam(param)"
+                                :key="item.id"
+                                :closable="mode !== 'read'"
+                                @close.prevent="removeSelectedFile(param, item.id)"
+                              >
+                                {{ item.name }}
+                              </a-tag>
+                            </div>
+                            <div v-if="mode !== 'read'" class="file-param-actions">
+                              <a-button @click="openFileLibrary(param)">
+                                {{ t('missionConfig.fileSelector.choose') }}
+                              </a-button>
+                              <a-button
+                                v-if="String(processor.params[index].value || '').trim()"
+                                @click="clearFileParam(param)"
+                              >
+                                {{ t('missionConfig.fileSelector.clear') }}
+                              </a-button>
+                            </div>
+                          </div>
+                        </template>
                         <a-textarea
+                            v-else
                             v-model:value="processor.params[index].value"
                             :auto-size="{ minRows: 1, maxRows: 6 }"
                             :placeholder="getPlaceholder(param)"
@@ -296,8 +385,8 @@
                       </a-form-item>
                     </a-col>
                   </a-row>
-                  <div v-if="param.description" class="param-description">
-                    {{ param.description }}
+                  <div v-if="getParamDescription(param)" class="param-description">
+                    {{ getParamDescription(param) }}
                   </div>
                 </div>
               </div>
@@ -311,10 +400,12 @@
             >
               {{ t('missionConfig.processor.add') }}
             </a-button>
-          </a-card>
+            </a-collapse-panel>
 
-          <!-- Sink Section -->
-          <a-card size="small" :title="t('missionConfig.sink.title')" class="section-card">
+            <a-collapse-panel key="sink" :header="t('missionConfig.sink.title')">
+              <div class="section-intro">
+                {{ t('missionConfig.sink.description') }}
+              </div>
             <a-row :gutter="16">
               <a-col :span="12">
                 <a-form-item
@@ -382,7 +473,33 @@
                         :rules="getValidationRules(param)"
                         style="margin-bottom: 12px;"
                     >
+                      <template v-if="isFileParam(param)">
+                        <div class="file-param-field">
+                          <div v-if="getSelectedFilesForParam(param).length" class="selected-file-tags">
+                            <a-tag
+                              v-for="item in getSelectedFilesForParam(param)"
+                              :key="item.id"
+                              :closable="mode !== 'read'"
+                              @close.prevent="removeSelectedFile(param, item.id)"
+                            >
+                              {{ item.name }}
+                            </a-tag>
+                          </div>
+                          <div v-if="mode !== 'read'" class="file-param-actions">
+                            <a-button @click="openFileLibrary(param)">
+                              {{ t('missionConfig.fileSelector.choose') }}
+                            </a-button>
+                            <a-button
+                              v-if="String(formData.sink.params[index].value || '').trim()"
+                              @click="clearFileParam(param)"
+                            >
+                              {{ t('missionConfig.fileSelector.clear') }}
+                            </a-button>
+                          </div>
+                        </div>
+                      </template>
                       <a-textarea
+                          v-else
                           v-model:value="formData.sink.params[index].value"
                           :auto-size="{ minRows: 1, maxRows: 6 }"
                           :placeholder="getPlaceholder(param)"
@@ -392,15 +509,17 @@
                     </a-form-item>
                   </a-col>
                 </a-row>
-                <div v-if="param.description" class="param-description">
-                  {{ param.description }}
+                <div v-if="getParamDescription(param)" class="param-description">
+                  {{ getParamDescription(param) }}
                 </div>
               </div>
             </div>
-          </a-card>
+            </a-collapse-panel>
 
-          <!-- After Execute Section -->
-          <a-card size="small" :title="t('missionConfig.afterTask.title')" class="section-card">
+            <a-collapse-panel key="after" :header="t('missionConfig.afterTask.title')">
+              <div class="section-intro">
+                {{ t('missionConfig.afterTask.description') }}
+              </div>
             <a-row :gutter="16">
               <a-col :span="12">
                 <a-form-item
@@ -468,7 +587,33 @@
                         :rules="getValidationRules(param)"
                         style="margin-bottom: 12px;"
                     >
+                      <template v-if="isFileParam(param)">
+                        <div class="file-param-field">
+                          <div v-if="getSelectedFilesForParam(param).length" class="selected-file-tags">
+                            <a-tag
+                              v-for="item in getSelectedFilesForParam(param)"
+                              :key="item.id"
+                              :closable="mode !== 'read'"
+                              @close.prevent="removeSelectedFile(param, item.id)"
+                            >
+                              {{ item.name }}
+                            </a-tag>
+                          </div>
+                          <div v-if="mode !== 'read'" class="file-param-actions">
+                            <a-button @click="openFileLibrary(param)">
+                              {{ t('missionConfig.fileSelector.choose') }}
+                            </a-button>
+                            <a-button
+                              v-if="String(formData.after_execute.params[index].value || '').trim()"
+                              @click="clearFileParam(param)"
+                            >
+                              {{ t('missionConfig.fileSelector.clear') }}
+                            </a-button>
+                          </div>
+                        </div>
+                      </template>
                       <a-textarea
+                          v-else
                           v-model:value="formData.after_execute.params[index].value"
                           :auto-size="{ minRows: 1, maxRows: 6 }"
                           :placeholder="getPlaceholder(param)"
@@ -478,101 +623,41 @@
                     </a-form-item>
                   </a-col>
                 </a-row>
-                <div v-if="param.description" class="param-description">
-                  {{ param.description }}
+                <div v-if="getParamDescription(param)" class="param-description">
+                  {{ getParamDescription(param) }}
                 </div>
               </div>
             </div>
+            </a-collapse-panel>
+          </a-collapse>
+
+          <a-card size="small" :title="t('missionConfig.preview.title')" class="section-card preview-card">
+            <div class="preview-description">
+              {{ t('missionConfig.preview.description') }}
+            </div>
+            <pre class="config-preview">{{ configPreview }}</pre>
           </a-card>
         </a-form>
       </div>
 
-      <!-- 文件上传区域（宽屏时在右侧） -->
-      <div
-          class="file-upload-section"
-          v-if="mode !== 'read' && !isNarrowScreen"
-      >
-        <a-card size="small" :title="t('missionConfig.fileUpload.title')" class="section-card">
-          <div class="file-upload-widget">
-            <div class="upload-area">
-              <a-upload-dragger
-                  v-model:file-list="fileList"
-                  :before-upload="beforeUpload"
-                  :max-count="5"
-                  multiple
-                  :show-upload-list="true"
-                  :disabled="uploadLoading"
-              >
-                <p class="ant-upload-drag-icon">
-                  <inbox-outlined />
-                </p>
-                <p class="ant-upload-text">
-                  {{ t('missionConfig.fileUpload.dragText') }}
-                </p>
-                <p class="ant-upload-hint">
-                  {{ t('missionConfig.fileUpload.hint') }}
-                </p>
-              </a-upload-dragger>
-
-              <a-button
-                  type="primary"
-                  @click="handleUpload"
-                  :loading="uploadLoading"
-                  :disabled="fileList.length === 0"
-                  style="margin-top: 16px; width: 100%"
-              >
-                {{ t('missionConfig.fileUpload.uploadButton') }}
-              </a-button>
-            </div>
-
-            <div class="uploaded-files" v-if="uploadedFiles.length > 0">
-              <h4>{{ t('missionConfig.fileUpload.uploadedTitle') }}</h4>
-              <a-list
-                  size="small"
-                  :data-source="uploadedFiles"
-                  :locale="{ emptyText: t('missionConfig.fileUpload.noFiles') }"
-              >
-                <template #renderItem="{ item }">
-                  <a-list-item class="file-list-item">
-                    <div class="file-item">
-                      <div class="file-info">
-                        <div class="file-name">
-                          <file-text-outlined style="margin-right: 8px;" />
-                          {{ item.name }}
-                        </div>
-                        <div class="file-id-small">
-                          ID: {{ item.id }}
-                        </div>
-                      </div>
-                      <div class="file-actions-vertical">
-                        <a-button
-                            type="link"
-                            size="small"
-                            @click="copyFileId(item.id)"
-                            :title="t('missionConfig.fileUpload.copyTooltip')"
-                        >
-                          <copy-outlined />
-                        </a-button>
-                        <a-button
-                            type="link"
-                            size="small"
-                            danger
-                            @click="removeFile(item.id)"
-                            :title="t('missionConfig.fileUpload.removeTooltip')"
-                        >
-                          <delete-outlined />
-                        </a-button>
-                      </div>
-                    </div>
-                  </a-list-item>
-                </template>
-
-              </a-list>
-            </div>
-          </div>
-        </a-card>
-      </div>
     </div>
+    <FileLibraryModal
+      v-model:open="fileLibraryOpen"
+      :multiple="activeFileParamMultiple"
+      :selected-ids="activeFileParamSelectedIds"
+      :title="t('missionConfig.fileSelector.modalTitle')"
+      @confirm="handleFileLibraryConfirm"
+    />
+    <template #footer>
+      <a-space v-if="mode !== 'read'">
+        <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
+        <a-button :loading="templateSaving" @click="handleSaveTemplate">
+          {{ t('missionConfig.template.save') }}
+        </a-button>
+        <a-button type="primary" @click="handleOk">{{ t('common.confirm') }}</a-button>
+      </a-space>
+      <a-button v-else @click="handleCancel">{{ t('common.close') }}</a-button>
+    </template>
   </a-modal>
 </template>
 
@@ -580,17 +665,14 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
-import { addTask, updateTask, getTypeByComponent } from "../api/mission";
-import type { ConfigItem, TaskType } from "../types/mission";
+import { addTask, updateTask, getTypeByComponent, saveTaskTemplate } from "../api/mission";
+import type { ConfigItem, TaskType, ParamItem } from "../types/mission";
 import { useI18n } from "vue-i18n";
-import { uploadFile } from "../api/file.ts";
-import {
-  InboxOutlined,
-  FileTextOutlined,
-  CopyOutlined,
-  DeleteOutlined
-} from '@ant-design/icons-vue';
+import { getFileList } from "../api/file.ts";
 import {RuleObject} from "ant-design-vue/es/form";
+import { ApiRequestError } from "../utils/request";
+import type { FileInfo } from "../types";
+import FileLibraryModal from "./FileLibraryModal.vue";
 
 const { t } = useI18n();
 
@@ -613,11 +695,14 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
   (e: "success"): void;
+  (e: "templateSaved"): void;
 }>();
 
 // 响应式数据
 const formRef = ref<FormInstance>();
 const screenWidth = ref(window.innerWidth);
+const activeSections = ref<string[]>(["basic", "source", "sink"]);
+const templateSaving = ref(false);
 
 // 屏幕宽度监听
 const isNarrowScreen = computed(() => screenWidth.value < 768);
@@ -666,6 +751,28 @@ const formData = reactive({
   after_execute: createEmptyConfig(),
 });
 
+const buildTaskPayload = (includeId = props.mode === "edit") => {
+  const payload: Record<string, any> = {
+    mission_name: formData.mission_name,
+    cron: formData.cron,
+    params: {
+      before_execute: formData.before_execute.type ? formData.before_execute : null,
+      source: formData.source.type ? formData.source : null,
+      processors: formData.processors.filter((p) => p.type),
+      sink: formData.sink.type ? formData.sink : null,
+      after_execute: formData.after_execute.type ? formData.after_execute : null,
+    },
+  };
+
+  if (includeId && props.id) {
+    payload.id = props.id;
+  }
+
+  return payload;
+};
+
+const configPreview = computed(() => JSON.stringify(buildTaskPayload(false), null, 2));
+
 // 表单验证规则
 const formRules = computed((): Record<string, RuleObject[]> => ({
   "mission_name": [
@@ -704,7 +811,11 @@ const syncParams = (configItem: ConfigItem, category: string) => {
     key: param.key,
     value: existingMap.get(param.key) || param.defaultValue || "",
     required: param.required,
-    description: param.description
+    description: param.description,
+    defaultValue: param.defaultValue,
+    placeholder: param.placeholder,
+    example: param.example,
+    type: param.type,
   }));
 };
 
@@ -776,8 +887,7 @@ const initForm = async () => {
     }
 
     // 根据模式初始化数据
-    if (props.mode === "add") {
-      // 新增模式
+    if (!props.data) {
       Object.assign(formData, {
         id: "",
         mission_name: "",
@@ -788,52 +898,55 @@ const initForm = async () => {
         sink: createEmptyConfig(),
         after_execute: createEmptyConfig(),
       });
-    } else if (props.data) {
-      // 编辑/只读模式
-      const data = props.data;
-      const record = props.record;
-
-      formData.id = props.id || "";
-      formData.mission_name = record.mission_name;
-
-      // 处理 cron 字段：如果是 manual 则设置为手动任务
-      const isManualTask = record.cron === 'manual';
-      formData.cron = isManualTask ? 'manual' : record.cron;
-
-      resetConfigItem(formData.before_execute, data.before_execute, "execute");
-      resetConfigItem(formData.source, data.source, "source");
-
-      // 处理器数组处理
-      if (Array.isArray(data.processors)) {
-        formData.processors = data.processors.map((item: any) => {
-          const cfg: ConfigItem = {
-            type: item.type,
-            data_source: item.data_source || undefined,
-            params: item.params || [],
-          };
-          if (props.mode !== 'read') syncParams(cfg, "processor");
-          return cfg;
-        });
-      } else {
-        formData.processors = [];
-      }
-
-      resetConfigItem(formData.sink, data.sink, "sink");
-      resetConfigItem(formData.after_execute, data.after_execute, "execute");
+      await refreshSelectedFilesFromParams();
+      return;
     }
+
+    const data = props.data;
+    const record = props.record || {};
+
+    formData.id = props.mode === "edit" ? props.id || "" : "";
+    formData.mission_name = props.mode === "add"
+        ? `${record.mission_name || ""}${t("missionConfig.copy.suffix")}`
+        : record.mission_name || "";
+
+    const isManualTask = props.taskType === "manual" || record.cron === 'manual';
+    formData.cron = isManualTask ? 'manual' : (record.cron || "");
+
+    resetConfigItem(formData.before_execute, data.before_execute, "execute");
+    resetConfigItem(formData.source, data.source, "source");
+
+    if (Array.isArray(data.processors)) {
+      formData.processors = data.processors.map((item: any) => {
+        const cfg: ConfigItem = {
+          type: item.type,
+          data_source: item.data_source || undefined,
+          params: item.params || [],
+        };
+        if (props.mode !== 'read') syncParams(cfg, "processor");
+        return cfg;
+      });
+    } else {
+      formData.processors = [];
+    }
+
+    resetConfigItem(formData.sink, data.sink, "sink");
+    resetConfigItem(formData.after_execute, data.after_execute, "execute");
+    await refreshSelectedFilesFromParams();
   } catch (error) {
     console.error("初始化表单失败:", error);
-    message.error("表单初始化失败");
+    message.error(t("missionConfig.form.initFailed"));
   }
 };
 
 // 监听打开状态
 watch(() => props.open, (val) => {
   if (val) {
+    activeFileParam.value = null;
     initForm();
-    // 重置文件列表
-    fileList.value = [];
-    uploadedFiles.value = [];
+  } else {
+    activeFileParam.value = null;
+    fileLibraryOpen.value = false;
   }
 });
 
@@ -855,19 +968,7 @@ const handleOk = async () => {
 
   try {
     await formRef.value?.validate();
-
-    const payload = {
-      id: props.id,
-      mission_name: formData.mission_name,
-      cron: formData.cron,
-      params: {
-        before_execute: formData.before_execute.type ? formData.before_execute : null,
-        source: formData.source.type ? formData.source : null,
-        processors: formData.processors.filter(p => p.type),
-        sink: formData.sink.type ? formData.sink : null,
-        after_execute: formData.after_execute.type ? formData.after_execute : null,
-      },
-    };
+    const payload = buildTaskPayload();
 
     const apiCall = props.mode === "edit" ? updateTask : addTask;
     const res = await apiCall(payload);
@@ -881,7 +982,47 @@ const handleOk = async () => {
       emit("success");
     }
   } catch (error) {
+    const apiError = error as ApiRequestError;
+    if (apiError?.details?.errors?.length) {
+      (formRef.value as any)?.setFields?.(
+        apiError.details.errors.map((item) => ({
+          name: item.field,
+          errors: [item.message],
+        }))
+      );
+    }
     console.error("保存任务失败：", error);
+  }
+};
+
+const handleSaveTemplate = async () => {
+  try {
+    await formRef.value?.validate();
+    templateSaving.value = true;
+    const payload = buildTaskPayload(false);
+    const taskType = formData.cron === "manual" ? "manual" : "scheduled";
+    const res = await saveTaskTemplate({
+      name: formData.mission_name,
+      cron: formData.cron,
+      tasktypes: taskType,
+      params: payload.params,
+    });
+    if (res.code === 0) {
+      message.success(t("missionConfig.template.saveSuccess"));
+      emit("templateSaved");
+    }
+  } catch (error) {
+    const apiError = error as ApiRequestError;
+    if (apiError?.details?.errors?.length) {
+      (formRef.value as any)?.setFields?.(
+        apiError.details.errors.map((item) => ({
+          name: item.field,
+          errors: [item.message],
+        }))
+      );
+    }
+  } finally {
+    templateSaving.value = false;
   }
 };
 
@@ -945,16 +1086,42 @@ const getValidationRules = (param: any) : RuleObject[]=> {
 };
 
 const getPlaceholder = (param: any) => {
+  if (isFileParam(param)) {
+    return t("missionConfig.fileSelector.help");
+  }
+  if (param.placeholder) {
+    return param.placeholder;
+  }
   if (param.defaultValue) {
     return `${param.description || ''} (默认值: ${param.defaultValue})`;
   }
   return param.description || '';
 };
 
-// FileUploadWidget 相关功能
-const fileList = ref<any[]>([]);
-const uploadedFiles = ref<any[]>([]);
-const uploadLoading = ref(false);
+const getParamDescription = (param: any) => {
+  if (isFileParam(param)) {
+    return t("missionConfig.fileSelector.help");
+  }
+  const chunks = [];
+  if (param.description) {
+    chunks.push(param.description);
+  }
+  if (param.defaultValue) {
+    chunks.push(`Default: ${param.defaultValue}`);
+  }
+  if (param.example) {
+    chunks.push(`Example: ${param.example}`);
+  }
+  if (param.type) {
+    chunks.push(`Type: ${param.type}`);
+  }
+  return chunks.join(" | ");
+};
+
+// File selector 相关功能
+const fileLibraryOpen = ref(false);
+const activeFileParam = ref<ParamItem | null>(null);
+const selectedFileMap = ref<Record<string, FileInfo>>({});
 
 const getAllConfigItems = () => {
   return [
@@ -966,107 +1133,102 @@ const getAllConfigItems = () => {
   ].filter(Boolean) as ConfigItem[];
 };
 
-const syncUploadedFilesToParams = () => {
-  if (uploadedFiles.value.length === 0) {
+const isFileParam = (param: ParamItem) => {
+  return String(param.key || "").includes("file_id");
+};
+
+const isMultiFileParam = (param: ParamItem) => {
+  return String(param.key || "").includes("file_ids");
+};
+
+const parseFileIds = (value: any) => {
+  if (!value) {
+    return [];
+  }
+  return String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const mergeSelectedFiles = (items: FileInfo[]) => {
+  const nextMap = { ...selectedFileMap.value };
+  items.forEach((item) => {
+    nextMap[item.id] = item;
+  });
+  selectedFileMap.value = nextMap;
+};
+
+const collectSelectedIdsFromParams = () => {
+  const ids = new Set<string>();
+  getAllConfigItems().forEach((config) => {
+    (config.params || []).forEach((param) => {
+      if (!isFileParam(param)) {
+        return;
+      }
+      parseFileIds(param.value).forEach((id) => ids.add(id));
+    });
+  });
+  return Array.from(ids);
+};
+
+const refreshSelectedFilesFromParams = async () => {
+  const ids = collectSelectedIdsFromParams();
+  if (!ids.length) {
+    selectedFileMap.value = {};
     return;
   }
+  const res = await getFileList({
+    ids: ids.join(","),
+    page_no: 1,
+    page_size: Math.max(ids.length, 10),
+  });
+  if (res.code === 0) {
+    mergeSelectedFiles(res.data.list || []);
+  }
+};
 
-  const firstFileId = uploadedFiles.value[0]?.id;
-  const allFileIds = uploadedFiles.value.map((file) => file.id).join(",");
-
-  getAllConfigItems().forEach((config) => {
-    config.params = (config.params || []).map((param) => {
-      if (param.key === "file_id" && !param.value && firstFileId) {
-        return { ...param, value: firstFileId };
-      }
-      if (param.key === "file_ids" && !param.value && allFileIds) {
-        return { ...param, value: allFileIds };
-      }
-      return param;
-    });
+const getSelectedFilesForParam = (param: ParamItem) => {
+  return parseFileIds(param.value).map((id) => selectedFileMap.value[id] || {
+    id,
+    name: id,
+    size: 0,
+    created_at: "",
+    path: "",
+    ex_name: "",
   });
 };
 
-const removeUploadedFileFromParams = (id: string) => {
-  getAllConfigItems().forEach((config) => {
-    config.params = (config.params || []).map((param) => {
-      if (param.key === "file_id" && param.value === id) {
-        return { ...param, value: "" };
-      }
-      if (param.key === "file_ids" && typeof param.value === "string") {
-        const nextValue = param.value
-            .split(",")
-            .map((item) => item.trim())
-            .filter((item) => item && item !== id)
-            .join(",");
-        return { ...param, value: nextValue };
-      }
-      return param;
-    });
-  });
+const activeFileParamMultiple = computed(() => {
+  return activeFileParam.value ? isMultiFileParam(activeFileParam.value) : false;
+});
+
+const activeFileParamSelectedIds = computed(() => {
+  return activeFileParam.value ? parseFileIds(activeFileParam.value.value) : [];
+});
+
+const openFileLibrary = (param: ParamItem) => {
+  activeFileParam.value = param;
+  fileLibraryOpen.value = true;
 };
 
-const beforeUpload = (file: any) => {
-  // 文件类型和大小验证
-  const isLt10M = file.size / 1024 / 1024 < 10;
-  if (!isLt10M) {
-    message.error(t('missionConfig.fileUpload.sizeError'));
-    return false;
-  }
-  return false; // 阻止自动上传
-};
-
-const handleUpload = async () => {
-  if (fileList.value.length === 0) {
-    message.warning(t('missionConfig.fileUpload.noFilesSelected'));
+const handleFileLibraryConfirm = (files: FileInfo[]) => {
+  if (!activeFileParam.value) {
     return;
   }
-
-  uploadLoading.value = true;
-
-  try {
-    const uploadPromises = fileList.value.map(async (fileItem) => {
-      const formData = new FormData();
-      formData.append('file', fileItem.originFileObj || fileItem);
-      const res = await uploadFile(formData);
-
-      if (res?.code === 0) {
-        return {
-          id: res.data.id,
-          name: fileItem.name,
-          size: res.data.size,
-          path: res.data.path,
-          ex_name: res.data.ex_name
-        };
-      }
-      throw new Error(t('missionConfig.fileUpload.uploadError', { file: fileItem.name }));
-    });
-
-    const results = await Promise.all(uploadPromises);
-    uploadedFiles.value = [...uploadedFiles.value, ...results];
-    syncUploadedFilesToParams();
-    fileList.value = [];
-    message.success(t('missionConfig.fileUpload.uploadSuccess'));
-  } catch (error: any) {
-    message.error(error.message || t('missionConfig.fileUpload.uploadFailed'));
-  } finally {
-    uploadLoading.value = false;
-  }
+  mergeSelectedFiles(files);
+  activeFileParam.value.value = isMultiFileParam(activeFileParam.value)
+    ? files.map((item) => item.id).join(",")
+    : (files[0]?.id || "");
 };
 
-const copyFileId = async (id: string) => {
-  try {
-    await navigator.clipboard.writeText(id);
-    message.success(t('missionConfig.fileUpload.copySuccess'));
-  } catch {
-    message.error(t('missionConfig.fileUpload.copyFailed'));
-  }
+const clearFileParam = (param: ParamItem) => {
+  param.value = "";
 };
 
-const removeFile = (id: string) => {
-  uploadedFiles.value = uploadedFiles.value.filter(file => file.id !== id);
-  removeUploadedFileFromParams(id);
-  message.success(t('missionConfig.fileUpload.removeSuccess'));
+const removeSelectedFile = (param: ParamItem, id: string) => {
+  const nextIds = parseFileIds(param.value).filter((item) => item !== id);
+  param.value = isMultiFileParam(param) ? nextIds.join(",") : "";
 };
 
 // const formatFileSize = (bytes: number): string => {
@@ -1100,22 +1262,6 @@ const removeFile = (id: string) => {
   }
 }
 
-.file-upload-section {
-  width: 280px;
-  flex-shrink: 0;
-
-  &.upload-first {
-    order: -1;
-    width: 100%;
-    margin-bottom: 20px;
-  }
-
-  .section-card {
-    height: fit-content;
-    background-color: #fff;
-  }
-}
-
 // 响应式设计
 @media (max-width: 768px) {
   .modal-content {
@@ -1123,13 +1269,8 @@ const removeFile = (id: string) => {
     gap: 16px;
   }
 
-  .main-content,
-  .file-upload-section {
+  .main-content {
     width: 100%;
-  }
-
-  .file-upload-section.upload-first {
-    order: -1;
   }
 }
 
@@ -1155,6 +1296,67 @@ const removeFile = (id: string) => {
   :deep(.ant-card-body) {
     padding: 12px;
   }
+}
+
+.config-collapse {
+  margin-bottom: 16px;
+
+  :deep(.ant-collapse-item) {
+    margin-bottom: 12px;
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  :deep(.ant-collapse-header) {
+    font-weight: 600;
+    background: #fafafa;
+  }
+
+  :deep(.ant-collapse-content-box) {
+    padding-top: 4px;
+  }
+}
+
+.section-intro {
+  margin-bottom: 12px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.section-example {
+  margin-top: -4px;
+  margin-bottom: 4px;
+  color: #8b5e3c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.preview-card {
+  margin-bottom: 0;
+}
+
+.preview-description {
+  margin-bottom: 12px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.config-preview {
+  margin: 0;
+  padding: 16px;
+  max-height: 280px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .text-center {
@@ -1212,67 +1414,28 @@ const removeFile = (id: string) => {
   font-style: italic;
 }
 
-/* FileUploadWidget styles */
-.file-upload-widget {
-  width: 100%;
-}
-
-.upload-area {
-  margin-bottom: 20px;
-}
-
-.uploaded-files {
-  margin-top: 20px;
-}
-
-.uploaded-files h4 {
-  margin-bottom: 12px;
-  color: #333;
-  font-weight: 600;
-}
-
-.file-list-item {
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.file-list-item:last-child {
-  border-bottom: none;
-}
-.file-item {
+.file-param-field {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
   align-items: flex-start;
-  width: 100%;
+}
+
+.selected-file-tags {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.file-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.file-name {
-  font-weight: 500;
-  margin-bottom: 4px;
+.file-param-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
-  color: #1890ff;
-  word-break: break-all;
 }
 
-.file-id-small {
-  font-size: 12px;
-  color: #999;
-  word-break: break-all;
-  line-height: 1.4;
-}
-
-.file-actions-vertical {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex-shrink: 0;
+.file-param-actions :deep(.ant-btn) {
+  min-width: 140px;
 }
 
 

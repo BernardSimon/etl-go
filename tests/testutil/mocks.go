@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"context"
+	"database/sql"
 	"io"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
@@ -18,12 +20,12 @@ type MockSource struct {
 	OpenCalled bool
 }
 
-func (m *MockSource) Open(_ map[string]string, _ *datasource.Datasource) error {
+func (m *MockSource) Open(_ context.Context, _ map[string]string, _ datasource.Datasource) error {
 	m.OpenCalled = true
 	return m.OpenErr
 }
 
-func (m *MockSource) Read() (record.Record, error) {
+func (m *MockSource) Read(_ context.Context) (record.Record, error) {
 	if m.ReadErr != nil {
 		return nil, m.ReadErr
 	}
@@ -53,11 +55,11 @@ type MockProcessor struct {
 	CloseErr    error
 }
 
-func (m *MockProcessor) Open(_ map[string]string) error {
+func (m *MockProcessor) Open(_ context.Context, _ map[string]string) error {
 	return m.OpenErr
 }
 
-func (m *MockProcessor) Process(r record.Record) (record.Record, error) {
+func (m *MockProcessor) Process(_ context.Context, r record.Record) (record.Record, error) {
 	if m.ProcessFunc != nil {
 		return m.ProcessFunc(r)
 	}
@@ -78,11 +80,11 @@ type MockSink struct {
 	CloseErr       error
 }
 
-func (m *MockSink) Open(_ map[string]string, _ map[string]string, _ *datasource.Datasource) error {
+func (m *MockSink) Open(_ context.Context, _ map[string]string, _ map[string]string, _ datasource.Datasource) error {
 	return m.OpenErr
 }
 
-func (m *MockSink) Write(_ string, records []record.Record) error {
+func (m *MockSink) Write(_ context.Context, _ string, records []record.Record) error {
 	if m.WriteErr != nil {
 		return m.WriteErr
 	}
@@ -102,7 +104,7 @@ type MockExecutor struct {
 	CloseErr error
 }
 
-func (m *MockExecutor) Open(_ map[string]string, _ *datasource.Datasource) error {
+func (m *MockExecutor) Open(_ context.Context, _ map[string]string, _ datasource.Datasource) error {
 	return m.OpenErr
 }
 
@@ -112,19 +114,24 @@ func (m *MockExecutor) Close() error {
 
 // MockDatasource is a test double for the datasource.Datasource interface.
 type MockDatasource struct {
-	InitErr  error
-	OpenVal  any
-	CloseErr error
+	InitErr   error
+	CloseErr  error
+	DBValue   *sql.DB
+	ConfigVal map[string]string
 }
 
 func (m *MockDatasource) Init(_ map[string]string) error {
 	return m.InitErr
 }
 
-func (m *MockDatasource) Open() any {
-	return m.OpenVal
-}
-
 func (m *MockDatasource) Close() error {
 	return m.CloseErr
+}
+
+func (m *MockDatasource) DB() *sql.DB {
+	return m.DBValue
+}
+
+func (m *MockDatasource) ConfigMap() map[string]string {
+	return m.ConfigVal
 }

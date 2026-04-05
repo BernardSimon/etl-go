@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/BernardSimon/etl-go/server/config"
-	_type "github.com/BernardSimon/etl-go/server/type"
+	types "github.com/BernardSimon/etl-go/server/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -35,13 +35,13 @@ func getLoginLimiter(ip string) *rate.Limiter {
 	return limiter
 }
 
-func Login(req *_type.LoginRequest, _ string) (interface{}, error) {
+func Login(req *types.LoginRequest, _ string) (interface{}, error) {
 	if req.Username == config.Config.Username && req.Password == config.Config.Password {
 		token, err := generateToken(req.Username)
 		if err != nil {
 			return nil, errors.New("failed to generate token")
 		}
-		response := _type.LoginResponse{
+		response := types.LoginResponse{
 			Token: token,
 		}
 		return response, nil
@@ -50,10 +50,10 @@ func Login(req *_type.LoginRequest, _ string) (interface{}, error) {
 }
 
 // LoginWithRateLimit wraps Login with per-IP rate limiting.
-func LoginWithRateLimit(c *gin.Context) func(*_type.LoginRequest, string) (interface{}, error) {
+func LoginWithRateLimit(c *gin.Context) func(*types.LoginRequest, string) (interface{}, error) {
 	ip := GetRealIP(c)
 	limiter := getLoginLimiter(ip)
-	return func(req *_type.LoginRequest, lang string) (interface{}, error) {
+	return func(req *types.LoginRequest, lang string) (interface{}, error) {
 		if !limiter.Allow() {
 			return nil, errors.New("too many login attempts, please try again later")
 		}

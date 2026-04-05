@@ -6,7 +6,7 @@ import (
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/server/model"
 	"github.com/BernardSimon/etl-go/server/task"
-	_type "github.com/BernardSimon/etl-go/server/type"
+	types "github.com/BernardSimon/etl-go/server/types"
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 	"gorm.io/gorm"
 )
@@ -21,7 +21,7 @@ func GetVariableList(_ *interface{}, _ string) (interface{}, error) {
 	}, nil
 }
 
-func NewVariable(req *_type.NewVariableRequest, lang string) (interface{}, error) {
+func NewVariable(req *types.NewVariableRequest, lang string) (interface{}, error) {
 	// 检查变量名是否已存在（排除当前编辑的变量）
 	var existingVariable model.Variable
 	query := model.DB.Where("name = ?", req.Name)
@@ -104,7 +104,7 @@ func NewVariable(req *_type.NewVariableRequest, lang string) (interface{}, error
 	return i18n.Translate(lang, "success"), nil
 }
 
-func DeleteVariable(req *_type.DeleteVariableRequest, lang string) (interface{}, error) {
+func DeleteVariable(req *types.DeleteVariableRequest, lang string) (interface{}, error) {
 	var variable model.Variable
 	model.DB.Where("id = ?", req.Id).First(&variable)
 	if variable.ID == "" {
@@ -116,7 +116,7 @@ func DeleteVariable(req *_type.DeleteVariableRequest, lang string) (interface{},
 	return i18n.Translate(lang, "success"), nil
 }
 
-func TestVariable(req *_type.TestVariableRequest, _ string) (interface{}, error) {
+func TestVariable(req *types.TestVariableRequest, _ string) (interface{}, error) {
 	var variable model.Variable
 	err := model.DB.Where("id = ?", req.Id).Limit(1).Preload("DataSource").First(&variable).Error
 	if err != nil {
@@ -130,12 +130,12 @@ func TestVariable(req *_type.TestVariableRequest, _ string) (interface{}, error)
 //	}
 func GetVariableTypeList(_ *interface{}, _ string) (interface{}, error) {
 	list := factory.GetVariableTypeList()
-	var resp = make([]_type.GetVariableTypeListResponse, 0)
+	var resp = make([]types.GetVariableTypeListResponse, 0)
 	for _, v := range list {
 		store, _ := factory.CreateVariable(v)
-		r := _type.GetVariableTypeListResponse{
+		r := types.GetVariableTypeListResponse{
 			Type:   v,
-			Params: store.Params,
+			Params: normalizeParams(store.Params),
 		}
 		if store.Datasource != nil {
 			name := *store.Datasource

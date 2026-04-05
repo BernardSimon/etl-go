@@ -2,10 +2,12 @@ package doris
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -49,7 +51,10 @@ func SinkCreator() (string, sink.Sink, *string, []params.Params) {
 }
 
 // Open 负责解析配置并初始化 Doris Stream Load 设置。
-func (s *Sink) Open(config map[string]string, columnMapping map[string]string, dataSource *datasource.Datasource) error {
+func (s *Sink) Open(ctx context.Context, config map[string]string, columnMapping map[string]string, dataSource datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// 处理 column_mapping
 	if len(columnMapping) == 0 {
 		return fmt.Errorf("doris sink: 'column_mapping' cannot be empty")
@@ -59,14 +64,15 @@ func (s *Sink) Open(config map[string]string, columnMapping map[string]string, d
 	// 从 datasource 获取基础配置
 	var host, port, user, password, database string
 	if dataSource != nil {
-		dsConfig := (*dataSource).Open()
-		if dsConfigMap, ok := dsConfig.(map[string]string); ok {
-			host = dsConfigMap["host"]
-			port = dsConfigMap["port"]
-			user = dsConfigMap["user"]
-			password = dsConfigMap["password"]
-			database = dsConfigMap["database"]
+		dsConfigMap, err := datasource.AsConfigMap(dataSource)
+		if err != nil {
+			return fmt.Errorf("doris sink: datasource config is invalid: %w", err)
 		}
+		host = dsConfigMap["host"]
+		port = dsConfigMap["port"]
+		user = dsConfigMap["user"]
+		password = dsConfigMap["password"]
+		database = dsConfigMap["database"]
 	}
 
 	// 从 params 获取表名和其他可选配置
@@ -118,7 +124,10 @@ type StreamLoadResponse struct {
 }
 
 // Write 将一批记录通过 Doris Stream Load 方式导入。
-func (s *Sink) Write(id string, records []record.Record) error {
+func (s *Sink) Write(ctx context.Context, id string, records []record.Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(records) == 0 {
 		return nil
 	}
@@ -149,7 +158,7 @@ func (s *Sink) Write(id string, records []record.Record) error {
 	}
 
 	// 创建 HTTP 请求
-	req, err := http.NewRequest("PUT", s.url, bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "PUT", s.url, bytes.NewReader(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -159,7 +168,9 @@ func (s *Sink) Write(id string, records []record.Record) error {
 	req.Header.Set("format", "JSON")
 	req.Header.Set("Expect", "100-continue")
 	req.Header.Set("strip_outer_array", "TRUE")
-	req.Header.Set("label", id+"_"+strconv.FormatInt(time.Now().UnixMicro(), 10)) // 唯一标识本次导入任务
+	re := regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+	safeID := re.ReplaceAllString(id, "_")
+	req.Header.Set("label", safeID+"_"+strconv.FormatInt(time.Now().UnixMicro(), 10)) // 唯一标识本次导入任务
 
 	// 发送请求
 	resp, err := s.client.Do(req)

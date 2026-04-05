@@ -2,10 +2,15 @@ package router
 
 import (
 	"net/http"
+	"reflect"
+	"strings"
 
 	"github.com/BernardSimon/etl-go/server/api"
+	types "github.com/BernardSimon/etl-go/server/types"
+	"github.com/BernardSimon/etl-go/server/utils/i18n"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 func Register(engine *gin.Engine) {
@@ -29,6 +34,7 @@ func Register(engine *gin.Engine) {
 	legacy.POST("/newDataSource", AdminAPI(api.NewDataSource, true))
 	legacy.POST("/getDataSourceTypeList", AdminAPI(api.GetDataSourceTypeList))
 	legacy.POST("/getDataSourceList", AdminAPI(api.GetDataSourceList))
+	legacy.POST("/testDataSource", AdminAPI(api.TestDataSource, true))
 	legacy.POST("/deleteDataSource", AdminAPI(api.DeleteDataSource))
 	legacy.POST("/getVariableList", AdminAPI(api.GetVariableList))
 	legacy.POST("/getVariableTypeList", AdminAPI(api.GetVariableTypeList))
@@ -37,6 +43,9 @@ func Register(engine *gin.Engine) {
 	legacy.POST("/testVariable", AdminAPI(api.TestVariable))
 	legacy.POST("/getTaskAll", AdminAPI(api.GetTaskAll))
 	legacy.POST("/addTask", AdminAPI(api.AddTask))
+	legacy.POST("/saveTaskTemplate", AdminAPI(api.SaveTaskTemplate))
+	legacy.POST("/getTaskTemplateList", AdminAPI(api.GetTaskTemplateList))
+	legacy.POST("/deleteTaskTemplate", AdminAPI(api.DeleteTaskTemplate))
 	legacy.POST("/getTaskById", AdminAPI(api.GetTaskById))
 	legacy.POST("/updateTask", AdminAPI(api.UpdateTask))
 	legacy.POST("/runTask", AdminAPI(api.RunTask))
@@ -61,6 +70,7 @@ func Register(engine *gin.Engine) {
 
 	// 数据源
 	v1.POST("/data-sources", AdminAPI(api.NewDataSource, true))
+	v1.POST("/data-sources/test", AdminAPI(api.TestDataSource, true))
 	v1.GET("/data-sources", AdminAPI(api.GetDataSourceList))
 	v1.GET("/data-sources/types", AdminAPI(api.GetDataSourceTypeList))
 	v1.DELETE("/data-sources/:id", AdminAPI(api.DeleteDataSource))
@@ -75,7 +85,12 @@ func Register(engine *gin.Engine) {
 	// 任务
 	v1.GET("/tasks", AdminAPI(api.GetTaskAll))
 	v1.POST("/tasks", AdminAPI(api.AddTask))
+	v1.GET("/task-templates", AdminAPI(api.GetTaskTemplateList))
+	v1.POST("/task-templates", AdminAPI(api.SaveTaskTemplate))
+	v1.DELETE("/task-templates/:id", AdminAPI(api.DeleteTaskTemplate))
 	v1.GET("/tasks/:id", AdminAPI(api.GetTaskById))
+	v1.GET("/tasks/:id/records", AdminAPI(api.GetTaskRecordsByTaskID))
+	v1.GET("/tasks/:id/log", AdminAPI(api.GetTaskLatestLog))
 	v1.PUT("/tasks/:id", AdminAPI(api.UpdateTask))
 	v1.DELETE("/tasks/:id", AdminAPI(api.DeleteTask))
 	v1.POST("/tasks/:id/schedule", AdminAPI(api.RunTask))
@@ -89,6 +104,8 @@ func Register(engine *gin.Engine) {
 	v1.GET("/task-records", AdminAPI(api.GetTaskRecordList))
 	v1.POST("/task-records/:id/cancel", AdminAPI(api.CancelTaskRecord))
 	v1.GET("/task-records/:id/files", AdminAPI(api.GetFileListByTaskRecordID))
+	v1.GET("/task-records/:id/params", AdminAPI(api.GetTaskRecordParams))
+	v1.GET("/task-records/:id/logs", AdminAPI(api.GetTaskRecordLogs))
 
 	// 文件
 	v1.GET("/files", AdminAPI(api.GetFileList))
@@ -105,16 +122,31 @@ func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) 
 		var req T
 		if err := c.ShouldBind(&req); err != nil {
 			c.Set("code", 1)
-			c.Set("message", "参数错误")
+			c.Set("message", "invalid request parameters")
+			c.Set("data", buildValidationErrorData(err, req, lang))
 			c.Abort()
 			return
 		}
 		// 绑定 URI 路径参数（如 :id），覆盖到同一个 req 结构体
-		_ = c.ShouldBindUri(&req)
+		if err := c.ShouldBindUri(&req); err != nil {
+			c.Set("code", 1)
+			c.Set("message", "invalid request parameters")
+			c.Set("data", buildValidationErrorData(err, req, lang))
+			c.Abort()
+			return
+		}
 		resp, err := f(&req, lang)
 		if err != nil {
-			c.Set("code", 2)
-			c.Set("message", err.Error())
+			if serviceErr, ok := err.(*types.ServiceError); ok {
+				c.Set("code", serviceErr.Code)
+				c.Set("message", serviceErr.Message)
+				if serviceErr.Data != nil {
+					c.Set("data", serviceErr.Data)
+				}
+			} else {
+				c.Set("code", 2)
+				c.Set("message", err.Error())
+			}
 			c.Abort()
 			return
 		} else {
@@ -124,4 +156,41 @@ func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) 
 			return
 		}
 	}
+}
+
+func buildValidationErrorData[T any](err error, req T, lang string) types.ErrorData {
+	data := types.ErrorData{}
+	validationErrors, ok := err.(validator.ValidationErrors)
+	if !ok {
+		return data
+	}
+
+	reqType := reflect.TypeOf(req)
+	if reqType.Kind() == reflect.Ptr {
+		reqType = reqType.Elem()
+	}
+
+	for _, fieldErr := range validationErrors {
+		fieldName := fieldErr.Field()
+		if sf, ok := reqType.FieldByName(fieldName); ok {
+			jsonTag := sf.Tag.Get("json")
+			uriTag := sf.Tag.Get("uri")
+			if jsonTag != "" && jsonTag != "-" {
+				fieldName = strings.Split(jsonTag, ",")[0]
+			} else if uriTag != "" && uriTag != "-" {
+				fieldName = strings.Split(uriTag, ",")[0]
+			}
+		}
+		message := "invalid field"
+		if fieldErr.Tag() == "required" {
+			message = i18n.Translate(lang, "field is required")
+		} else {
+			message = i18n.Translate(lang, "invalid field")
+		}
+		data.Errors = append(data.Errors, types.FieldError{
+			Field:   fieldName,
+			Message: message,
+		})
+	}
+	return data
 }

@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 type Source struct {
 	db          *sql.DB   // 数据库连接池。它被设计为长期存活且线程安全。
 	rows        *sql.Rows // SQL 查询结果集的前向只读迭代器。
-	datasource  *datasource.Datasource
+	datasource  datasource.Datasource
 	columnNames []string // 预先获取的查询结果列名。
 }
 
@@ -81,7 +82,10 @@ func SourceCreatorSqlite() (string, source.Source, *string, []params.Params) {
 	return sqliteName, &Source{}, &sqliteDatasourceName, paramList
 }
 
-func (s *Source) Open(config map[string]string, dataSource *datasource.Datasource) error {
+func (s *Source) Open(ctx context.Context, config map[string]string, dataSource datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.datasource = dataSource
 	// 'query' 是必需配置。
 	query, ok := config["query"]
@@ -94,10 +98,17 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 		return fmt.Errorf("sql source: %w", err)
 	}
 
+	if dataSource == nil {
+		return fmt.Errorf("sql source: datasource is required")
+	}
+	dbInstance, dbErr := datasource.AsSQLDB(dataSource)
+	if dbErr != nil {
+		return fmt.Errorf("sql source: failed to get database connection from datasource: %w", dbErr)
+	}
+	s.db = dbInstance
 	var err error
-	s.db = (*dataSource).Open().(*sql.DB)
 	// 执行查询，获取结果集迭代器。
-	s.rows, err = s.db.Query(query)
+	s.rows, err = s.db.QueryContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("sql source: failed to executor query: %w", err)
 	}
@@ -111,7 +122,10 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 }
 
 // Read 读取查询结果的下一行，并将其转换为一个 `core.Record`。
-func (s *Source) Read() (record.Record, error) {
+func (s *Source) Read(ctx context.Context) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// 检查结果集中是否还有下一行。
 	if !s.rows.Next() {
 		// 在迭代结束后，必须调用 .Err() 来检查循环期间是否发生错误。
@@ -164,9 +178,11 @@ func (s *Source) Close() error {
 			errs = append(errs, fmt.Errorf("sql source: failed to close rows: %w", err))
 		}
 	}
-	err := (*s.datasource).Close()
-	if err != nil {
-		errs = append(errs, fmt.Errorf("sql source: failed to close db: %w", err))
+	if s.datasource != nil {
+		err := s.datasource.Close()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("sql source: failed to close db: %w", err))
+		}
 	}
 
 	return errors.Join(errs...)

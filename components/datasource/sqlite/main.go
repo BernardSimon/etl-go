@@ -6,7 +6,7 @@ import (
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/params"
-	//_ "modernc.org/sqlite"  //项目本身已经引入sqlite，无需重复引用
+	_ "modernc.org/sqlite"
 )
 
 type DataSource struct {
@@ -42,7 +42,7 @@ func (d *DataSource) Init(config map[string]string) error {
 	return nil
 }
 
-func (d *DataSource) Open() any {
+func (d *DataSource) DB() *sql.DB {
 	return d.db
 }
 

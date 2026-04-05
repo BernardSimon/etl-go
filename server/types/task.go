@@ -1,4 +1,4 @@
-package _type
+package types
 
 import (
 	"database/sql/driver"
@@ -84,6 +84,15 @@ type GetTaskByIdRequest struct {
 	Id string `json:"id" uri:"id" binding:"required"`
 }
 
+type GetTaskAllRequest struct {
+	PageNo      int    `json:"page_no" form:"page_no"`
+	PageSize    int    `json:"page_size" form:"page_size"`
+	MissionName string `json:"mission_name" form:"mission_name"`
+	Status      *int   `json:"status" form:"status"`
+	Search      string `json:"search" form:"search"`
+	TaskType    string `json:"tasktypes" form:"tasktypes"`
+}
+
 type UpdateTaskRequest struct {
 	Id     string   `json:"id" uri:"id" binding:"required"`
 	Name   string   `json:"mission_name" binding:"required"`
@@ -127,8 +136,21 @@ type GetTaskRecordListRequest struct {
 	MissionName string `json:"mission_name" form:"mission_name"`
 	Status      int    `json:"status" form:"status"`
 	ID          string `json:"id" form:"id"`
+	TaskID      string `json:"task_id" form:"task_id" uri:"id"`
 }
 
 type CancelTaskRecord struct {
 	ID string `json:"id" uri:"id"`
+}
+
+type SaveTaskTemplateRequest struct {
+	ID       string   `json:"id,omitempty" uri:"id"`
+	Name     string   `json:"name" binding:"required"`
+	ParStr   TaskData `json:"params" binding:"required"`
+	Cron     string   `json:"cron" binding:"required"`
+	TaskType string   `json:"tasktypes" binding:"required"`
+}
+
+type DeleteTaskTemplateRequest struct {
+	ID string `json:"id" uri:"id" binding:"required"`
 }

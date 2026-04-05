@@ -56,7 +56,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 	}
 }
 
-func (d *DataSource) Open() any {
+func (d *DataSource) ConfigMap() map[string]string {
 	return map[string]string{
 		"host":     d.Host,
 		"port":     d.Port,

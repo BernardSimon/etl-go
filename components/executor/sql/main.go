@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -37,7 +38,7 @@ func SetCustomNameSqlite(name string, datasourceName string) {
 type Executor struct {
 	db         *sql.DB
 	results    sql.Result
-	datasource *datasource.Datasource
+	datasource datasource.Datasource
 }
 
 func ExecutorCreatorMysql() (string, executor.Executor, *string, []params.Params) {
@@ -71,7 +72,10 @@ func ExecutorCreatorSqlite() (string, executor.Executor, *string, []params.Param
 	}
 }
 
-func (s *Executor) Open(config map[string]string, datasource *datasource.Datasource) error {
+func (s *Executor) Open(ctx context.Context, config map[string]string, ds datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	query, ok := config["sql"]
 	if !ok || query == "" {
 		return fmt.Errorf("sql executor: config is missing or has invalid 'sql'")
@@ -81,20 +85,25 @@ func (s *Executor) Open(config map[string]string, datasource *datasource.Datasou
 	if err := security.ValidateExecutorSQL(query, allowDangerous); err != nil {
 		return fmt.Errorf("sql executor: %w", err)
 	}
+	s.datasource = ds
+	if s.datasource == nil {
+		return fmt.Errorf("sql executor: datasource is required")
+	}
+	dbInstance, dbErr := datasource.AsSQLDB(s.datasource)
+	if dbErr != nil {
+		return fmt.Errorf("sql executor: failed to get database connection from datasource: %w", dbErr)
+	}
+	s.db = dbInstance
 	var err error
-	s.datasource = datasource
-	s.db = (*s.datasource).Open().(*sql.DB)
-	s.results, err = s.db.Exec(query)
+	s.results, err = s.db.ExecContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("sql executor: failed to executor sql: %w", err)
 	}
 	return nil
 }
 func (s *Executor) Close() error {
-	// 然后关闭 db 连接池。
-	err := (*s.datasource).Close()
-	if err != nil {
-		return err
+	if s.datasource == nil {
+		return nil
 	}
-	return nil
+	return s.datasource.Close()
 }

@@ -46,16 +46,19 @@
     <a-layout>
       <a-layout-header class="layout-header">
         <div class="header-left">
-          <menu-unfold-outlined
-            v-if="collapsed"
-            class="trigger"
+          <a-button
+            type="text"
+            shape="circle"
+            class="trigger-button"
+            :title="t('layout.toggleSidebar')"
+            :aria-label="t('layout.toggleSidebar')"
             @click="() => (collapsed = !collapsed)"
-          />
-          <menu-fold-outlined
-            v-else
-            class="trigger"
-            @click="() => (collapsed = !collapsed)"
-          />
+          >
+            <template #icon>
+              <menu-unfold-outlined v-if="collapsed" class="trigger" />
+              <menu-fold-outlined v-else class="trigger" />
+            </template>
+          </a-button>
 
           <!-- 面包屑 -->
           <a-breadcrumb class="breadcrumb">
@@ -72,27 +75,37 @@
       <div class="header-right">
         <!-- 切换语言菜单 -->
         <a-dropdown>
-          <div class="language">
-            <span class="currentLanguage">语言/Language</span>
+          <div
+            class="language"
+            role="button"
+            tabindex="0"
+            :aria-label="t('layout.language')"
+          >
+            <span class="currentLanguage">{{ t("layout.language") }}</span>
           </div>
           <template #overlay>
             <a-menu @click="handleLanguageClick">
               <a-menu-item key="zh">
-                简体中文
+                {{ t("layout.language.zh") }}
               </a-menu-item>
               <a-menu-item key="en">
-                English
+                {{ t("layout.language.en") }}
               </a-menu-item>
             </a-menu>
           </template>
         </a-dropdown>
           <!-- 用户下拉菜单 -->
           <a-dropdown>
-            <div class="user-info">
+            <div
+              class="user-info"
+              role="button"
+              tabindex="0"
+              :aria-label="t('layout.userMenu')"
+            >
               <a-avatar :size="32">
                 <template #icon><UserOutlined /></template>
               </a-avatar>
-              <span class="username">{{ "Admin" }}</span>
+              <span class="username">{{ t("layout.username") }}</span>
             </div>
             <template #overlay>
               <a-menu @click="handleMenuClick">
@@ -139,16 +152,16 @@
           href="https://github.com/BernardSimon/etl-go"
           target="_blank"
         >
-          Powered by ETL-GO
+          {{ t("layout.footer.poweredBy") }}
         </a>
-        <span class="text-gray-400">Derived From </span>
+        <span class="text-gray-400"> · {{ t("layout.footer.derivedFrom") }}</span>
         <a
           href="https://github.com/changhe626/go-pocket-etl"
           target="_blank"
           class="text-gray-400"
           >go-pocket-etl</a
         >
-        <span class="text-gray-400">, Following the Apache License 2.0</span>
+        <span class="text-gray-400">{{ t("layout.footer.license") }}</span>
       </a-layout-footer>
     </a-layout>
   </a-layout>
@@ -221,7 +234,7 @@ const findMenuPath = (
 
 // 添加标签页
 const addTab = (path: string) => {
-  const title = (route.meta.title as string) || "Unknown";
+  const title = (route.meta.title as string) || "common.unknown";
   const existing = panes.value.find((p) => p.key === path);
   if (!existing) {
     panes.value.push({
@@ -353,9 +366,6 @@ const handleLanguageClick = async (e: any) => {
 
     .trigger {
       font-size: 18px;
-      line-height: 64px;
-      padding: 0 24px 0 0;
-      cursor: pointer;
       transition: color 0.3s;
 
       &:hover {
@@ -386,6 +396,10 @@ const handleLanguageClick = async (e: any) => {
 
 }
 
+.trigger-button {
+  margin-right: 8px;
+}
+
 .tabs-view-container {
   padding: 6px 16px 0;
   background: #fff;
@@ -413,5 +427,38 @@ const handleLanguageClick = async (e: any) => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .layout-header {
+    height: auto;
+    min-height: 64px;
+    padding: 8px 12px;
+    line-height: 1.4;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .header-left,
+    .header-right {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .header-right {
+      gap: 12px;
+    }
+
+    .header-left .breadcrumb {
+      display: none;
+    }
+  }
+
+  .tabs-view-container {
+    padding: 6px 8px 0;
+  }
+
+  .layout-content {
+    margin: 8px;
+  }
 }
 </style>

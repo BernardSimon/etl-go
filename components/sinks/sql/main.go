@@ -1,8 +1,10 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
@@ -24,14 +26,14 @@ var postgreDatasourceName = "postgre"
 
 func SetCustomNamePostgre(customName string, customDatasourceName string) {
 	postgreName = customName
-	mysqlDatasourceName = customDatasourceName
+	postgreDatasourceName = customDatasourceName
 }
 
 type Sink struct {
 	db            *sql.DB           // 数据库连接池
 	table         string            // 目标表名
 	columnMapping map[string]string // 列映射关系 (Record 中的键 -> 数据库中的列名)
-	datasource    *datasource.Datasource
+	datasource    datasource.Datasource
 }
 
 func SinkCreatorMysql() (string, sink.Sink, *string, []params.Params) {
@@ -74,7 +76,10 @@ func SinkCreatorSqlite() (string, sink.Sink, *string, []params.Params) {
 }
 
 // Open 负责解析配置并初始化数据库连接设置
-func (s *Sink) Open(config map[string]string, columnMapping map[string]string, dataSource *datasource.Datasource) error {
+func (s *Sink) Open(ctx context.Context, config map[string]string, columnMapping map[string]string, dataSource datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// 处理 column_mapping
 	if len(columnMapping) == 0 {
 		return fmt.Errorf("sql sink: 'column_mapping' cannot be empty")
@@ -83,12 +88,11 @@ func (s *Sink) Open(config map[string]string, columnMapping map[string]string, d
 
 	// 从 datasource 获取数据库连接
 	if dataSource != nil {
-		db := (*dataSource).Open()
-		if dbInstance, ok := db.(*sql.DB); ok {
-			s.db = dbInstance
-		} else {
-			return fmt.Errorf("sql sink: failed to get database connection from datasource")
+		dbInstance, err := datasource.AsSQLDB(dataSource)
+		if err != nil {
+			return fmt.Errorf("sql sink: failed to get database connection from datasource: %w", err)
 		}
+		s.db = dbInstance
 		s.datasource = dataSource
 	}
 
@@ -108,7 +112,10 @@ func (s *Sink) Open(config map[string]string, columnMapping map[string]string, d
 }
 
 // Write 将一批记录通过构建一个大的 INSERT 语句在事务中批量写入数据库
-func (s *Sink) Write(_ string, records []record.Record) error {
+func (s *Sink) Write(ctx context.Context, _ string, records []record.Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(records) == 0 {
 		return nil
 	}
@@ -118,7 +125,7 @@ func (s *Sink) Write(_ string, records []record.Record) error {
 	}
 
 	// 启动事务
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("sql sink: failed to begin transaction: %w", err)
 	}
@@ -132,7 +139,21 @@ func (s *Sink) Write(_ string, records []record.Record) error {
 	placeholders := make([]string, 0, len(s.columnMapping))
 	recordKeysInOrder := make([]string, 0, len(s.columnMapping))
 
-	for recordKey, dbCol := range s.columnMapping {
+	recordKeys := make([]string, 0, len(s.columnMapping))
+	for recordKey := range s.columnMapping {
+		recordKeys = append(recordKeys, recordKey)
+	}
+	sort.Slice(recordKeys, func(i, j int) bool {
+		leftCol := s.columnMapping[recordKeys[i]]
+		rightCol := s.columnMapping[recordKeys[j]]
+		if leftCol == rightCol {
+			return recordKeys[i] < recordKeys[j]
+		}
+		return leftCol < rightCol
+	})
+
+	for _, recordKey := range recordKeys {
+		dbCol := s.columnMapping[recordKey]
 		dbColumns = append(dbColumns, "`"+dbCol+"`") // 为列名加上反引号以处理保留字
 		placeholders = append(placeholders, "?")
 		recordKeysInOrder = append(recordKeysInOrder, recordKey)
@@ -158,7 +179,7 @@ func (s *Sink) Write(_ string, records []record.Record) error {
 	}
 
 	// 执行批量插入
-	_, err = tx.Exec(query, args...)
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("sql sink: failed to execute batch insert: %w", err)
 	}
@@ -169,5 +190,8 @@ func (s *Sink) Write(_ string, records []record.Record) error {
 
 // Close 负责关闭数据库连接池，释放所有底层连接
 func (s *Sink) Close() error {
-	return (*s.datasource).Close()
+	if s.datasource == nil {
+		return nil
+	}
+	return s.datasource.Close()
 }

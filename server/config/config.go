@@ -26,15 +26,21 @@ type DatabaseConfig struct {
 	ConnMaxLifetime int    `yaml:"connMaxLifetime"` // seconds, default: 300
 }
 
+type PipelineConfig struct {
+	BatchSize   int `yaml:"batchSize"`   // default: 1000
+	ChannelSize int `yaml:"channelSize"` // default: 10000
+}
+
 type configModel struct {
 	Username    string         `yaml:"username"`
 	Password    string         `yaml:"password"`
 	JwtSecret   string         `yaml:"jwtSecret"`
 	AesKey      string         `yaml:"aesKey"`
 	InitDb      bool           `yaml:"initDb"`
-	LogLevel    string         `yaml:"logLevel"`    // dev or prod
+	LogLevel    string         `yaml:"logLevel"` // dev or prod
 	Log         LogConfig      `yaml:"log"`
 	Database    DatabaseConfig `yaml:"database"`
+	Pipeline    PipelineConfig `yaml:"pipeline"`
 	ServerUrl   string         `yaml:"serverUrl"`
 	RunWeb      bool           `yaml:"runWeb"`
 	WebUrl      string         `yaml:"webUrl"`
@@ -80,6 +86,12 @@ func LoadConfig() error {
 	}
 	if v := os.Getenv("ETL_LOG_LEVEL"); v != "" {
 		Config.LogLevel = v
+	}
+	if Config.Pipeline.BatchSize <= 0 {
+		Config.Pipeline.BatchSize = 1000
+	}
+	if Config.Pipeline.ChannelSize <= 0 {
+		Config.Pipeline.ChannelSize = 10000
 	}
 
 	Ip = GetLocalIP()

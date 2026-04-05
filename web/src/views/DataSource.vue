@@ -3,15 +3,22 @@
     <a-card :bordered="false">
       <div class="table-operations">
         <div class="left">
+          <a-space>
           <a-button type="primary" @click="handleOpenAddDialog">
             <template #icon>
               <PlusOutlined />
             </template>
             {{ $t("datasource.add.title") }}
           </a-button>
+          </a-space>
         </div>
         <div class="right">
-          <a-button shape="circle" @click="fetchDataSourceList">
+          <a-button
+            shape="circle"
+            :title="t('common.refresh')"
+            :aria-label="t('common.refresh')"
+            @click="fetchDataSourceList"
+          >
             <template #icon>
               <ReloadOutlined />
             </template>
@@ -19,13 +26,37 @@
         </div>
       </div>
 
+      <a-space class="filter-bar" style="margin-bottom: 16px" wrap>
+        <a-input
+          v-model:value="filters.keyword"
+          :placeholder="t('datasource.search.keyword')"
+          allow-clear
+          style="width: 220px"
+        />
+        <a-select
+          v-model:value="filters.type"
+          :placeholder="t('datasource.search.type')"
+          allow-clear
+          style="width: 180px"
+        >
+          <a-select-option
+            v-for="item in dataSourceTypeList"
+            :key="item.type"
+            :value="item.type"
+          >
+            {{ item.type }}
+          </a-select-option>
+        </a-select>
+      </a-space>
+
       <a-table
           :columns="getColumns()"
-          :data-source="tableData"
+          :data-source="filteredTableData"
           bordered
           row-key="id"
           :loading="loading"
           :scroll="{ y: 'calc(100vh - 470px)', x: 'max-content' }"
+          :locale="{ emptyText: loadError ? t('common.loadFailed') : t('common.empty') }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
@@ -36,6 +67,11 @@
                   size="small"
                   @click="handleEdit(record)"
               >{{ $t("datasource.action.edit") }}</a-button
+              >
+              <a-button
+                  size="small"
+                  @click="handleClone(record)"
+              >{{ $t("datasource.action.clone") }}</a-button
               >
               <a-button
                   type="primary"
@@ -54,8 +90,7 @@
     <a-modal
         v-model:open="addDataSourceDialog.show"
         :title="addDataSourceDialog.title"
-        width="600px"
-        @ok="handleAddDataSource"
+        width="720px"
         @cancel="handleCancel"
     >
       <a-form
@@ -93,24 +128,86 @@
             :key="index"
             :label="param.key"
             :name="['data', index, 'value']"
-            :rules="[{ required: param.required, }]"
+            :rules="[{ required: param.required, message: isFileParam(param) ? t('datasource.fileSelector.required') : t('datasource.param.required', { param: param.key }) }]"
         >
+          <template v-if="isFileParam(param)">
+            <div class="file-param-block">
+              <div class="file-param-field">
+              <div v-if="getSelectedFilesForParam(param).length" class="selected-file-tags">
+                <a-tag
+                  v-for="item in getSelectedFilesForParam(param)"
+                  :key="item.id"
+                  closable
+                  @close.prevent="removeSelectedFile(param, item.id)"
+                >
+                  {{ item.name }}
+                </a-tag>
+              </div>
+              <div class="file-param-actions">
+                <a-button @click="openFileLibrary(param)">
+                  {{ t('datasource.fileSelector.choose') }}
+                </a-button>
+                <a-button v-if="String(param.value || '').trim()" @click="clearFileParam(param)">
+                  {{ t('datasource.fileSelector.clear') }}
+                </a-button>
+              </div>
+              </div>
+              <div class="param-help param-help-file">
+                <span v-if="param.required" class="required">{{ t('datasource.param.requiredTag') }}</span>
+                <span>{{ t('datasource.fileSelector.help') }}</span>
+              </div>
+            </div>
+          </template>
           <a-input
+              v-else
               v-model:value="param.value"
-              :placeholder="param.description"
+              :placeholder="param.placeholder || param.description || t('datasource.param.placeholder', { param: param.key })"
           />
+          <div class="param-help">
+            <template v-if="!isFileParam(param)">
+              <span v-if="param.required" class="required">{{ t('datasource.param.requiredTag') }}</span>
+              <span v-if="param.description">{{ param.description }}</span>
+              <span v-else>{{ t('datasource.param.noDescription') }}</span>
+              <span v-if="param.defaultValue"> · {{ t('datasource.param.defaultValue', { value: param.defaultValue }) }}</span>
+              <span v-if="param.example"> · {{ t('datasource.param.example', { value: param.example }) }}</span>
+              <span v-if="param.type"> · {{ t('datasource.param.type', { value: param.type }) }}</span>
+            </template>
+          </div>
         </a-form-item>
       </a-form>
+      <template #footer>
+        <a-space>
+          <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
+          <a-button
+            :loading="testing"
+            :disabled="!addDataSourceDialog.form.type"
+            @click="handleTestDataSource"
+          >
+            {{ t('datasource.action.test') }}
+          </a-button>
+          <a-button type="primary" @click="handleAddDataSource">
+            {{ t('common.confirm') }}
+          </a-button>
+        </a-space>
+      </template>
     </a-modal>
+    <FileLibraryModal
+      v-model:open="fileLibraryOpen"
+      :multiple="activeFileParamMultiple"
+      :selected-ids="activeFileParamSelectedIds"
+      :title="t('datasource.fileSelector.modalTitle')"
+      @confirm="handleFileLibraryConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import {
   getDataSourceTypeList,
   addDataSource,
   getDataSourceList,
+  testDataSource,
   deleteDataSource,
 } from "../api/datasource.ts";
 import { useI18n } from "vue-i18n";
@@ -118,9 +215,12 @@ import { useI18n } from "vue-i18n";
 import { message, Modal } from "ant-design-vue";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import type { FormInstance } from "ant-design-vue";
-import type { Params } from "@/src/types";
+import type { FileInfo, Params } from "@/src/types";
 import {SelectValue} from "ant-design-vue/es/select";
 import {RuleObject} from "ant-design-vue/es/form";
+import { ApiRequestError } from "../utils/request";
+import { getFileList } from "../api/file";
+import FileLibraryModal from "../components/FileLibraryModal.vue";
 
 const { t } = useI18n();
 
@@ -129,6 +229,10 @@ interface DataSourceParam {
   value: string;
   description?: string;
   required: boolean;
+  defaultValue?: string;
+  placeholder?: string;
+  example?: string;
+  type?: string;
 }
 
 // interface DataSourceForm {
@@ -156,13 +260,108 @@ const addDataSourceDialog = ref({
 const addDataSourceFormRef = ref<FormInstance>();
 
 // 表单验证规则
-const formRules:{ [k: string]: RuleObject | RuleObject[]; } = {
+const formRules = computed<{ [k: string]: RuleObject | RuleObject[] }>(() => ({
   name: [{ required: true, message: t("datasource.name.placeholder"), trigger: "blur" }],
   type: [{ required: true, message: t("datasource.type.placeholder"), trigger: "change" }]
-};
+}));
 
 const tableData = ref<any[]>([]);
 const loading = ref(false);
+const loadError = ref(false);
+const testing = ref(false);
+const fileLibraryOpen = ref(false);
+const activeFileParam = ref<DataSourceParam | null>(null);
+const selectedFileMap = ref<Record<string, FileInfo>>({});
+const filters = ref({
+  keyword: "",
+  type: undefined as string | undefined,
+});
+
+const filteredTableData = computed(() => {
+  return tableData.value.filter((item) => {
+    const matchKeyword = !filters.value.keyword ||
+      item.name?.toLowerCase().includes(filters.value.keyword.toLowerCase());
+    const matchType = !filters.value.type || item.type === filters.value.type;
+    return matchKeyword && matchType;
+  });
+});
+
+const isFileParam = (param: DataSourceParam) => String(param.key || "").includes("file_id");
+const isMultiFileParam = (param: DataSourceParam) => String(param.key || "").includes("file_ids");
+const parseFileIds = (value: string) =>
+  String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const mergeSelectedFiles = (items: FileInfo[]) => {
+  const nextMap = { ...selectedFileMap.value };
+  items.forEach((item) => {
+    nextMap[item.id] = item;
+  });
+  selectedFileMap.value = nextMap;
+};
+
+const refreshSelectedFilesFromForm = async () => {
+  const ids = Array.from(
+    new Set(
+      addDataSourceDialog.value.form.data
+        .filter((param) => isFileParam(param))
+        .flatMap((param) => parseFileIds(param.value))
+    )
+  );
+
+  if (!ids.length) {
+    selectedFileMap.value = {};
+    return;
+  }
+
+  const res = await getFileList({
+    ids: ids.join(","),
+    page_no: 1,
+    page_size: Math.max(ids.length, 10),
+  });
+  if (res.code === 0) {
+    mergeSelectedFiles(res.data.list || []);
+  }
+};
+
+const getSelectedFilesForParam = (param: DataSourceParam) =>
+  parseFileIds(param.value).map((id) => selectedFileMap.value[id] || ({
+    id,
+    name: id,
+    size: 0,
+    created_at: "",
+    path: "",
+    ex_name: "",
+  }));
+
+const openFileLibrary = (param: DataSourceParam) => {
+  activeFileParam.value = param;
+  fileLibraryOpen.value = true;
+};
+
+const clearFileParam = (param: DataSourceParam) => {
+  param.value = "";
+};
+
+const removeSelectedFile = (param: DataSourceParam, id: string) => {
+  const nextIds = parseFileIds(param.value).filter((item) => item !== id);
+  param.value = isMultiFileParam(param) ? nextIds.join(",") : "";
+};
+
+const activeFileParamMultiple = computed(() => activeFileParam.value ? isMultiFileParam(activeFileParam.value) : false);
+const activeFileParamSelectedIds = computed(() => activeFileParam.value ? parseFileIds(activeFileParam.value.value) : []);
+
+const handleFileLibraryConfirm = (files: FileInfo[]) => {
+  if (!activeFileParam.value) {
+    return;
+  }
+  mergeSelectedFiles(files);
+  activeFileParam.value.value = isMultiFileParam(activeFileParam.value)
+    ? files.map((item) => item.id).join(",")
+    : (files[0]?.id || "");
+};
 
 const getColumns = (): any[] => {
   return [
@@ -197,9 +396,14 @@ const getColumns = (): any[] => {
 // 刷新数据源列表
 const fetchDataSourceList = () => {
   loading.value = true;
+  loadError.value = false;
   getDataSourceList()
       .then((res: any) => {
-        tableData.value = res.data.list;
+        tableData.value = res.data.list || [];
+      })
+      .catch(() => {
+        loadError.value = true;
+        tableData.value = [];
       })
       .finally(() => {
         loading.value = false;
@@ -227,6 +431,9 @@ const resetForm = () => {
   form.name = "";
   form.type = "";
   form.data = [];
+  activeFileParam.value = null;
+  fileLibraryOpen.value = false;
+  selectedFileMap.value = {};
 
   // 清除表单验证状态
   if (addDataSourceFormRef.value) {
@@ -240,16 +447,22 @@ const onDatasourceTypeChange = (value: SelectValue) => {
   const form = addDataSourceDialog.value.form;
 
   if (selectedType) {
+    const existingMap = new Map(form.data.map((item) => [item.key, item.value]));
     // 初始化动态参数
     form.data = selectedType.params.map(param => ({
       key: param.key,
-      value: "",
+      value: String(existingMap.get(param.key) || param.defaultValue || ""),
       description: param.description,
-      required: param.required || false
+      required: param.required || false,
+      defaultValue: param.defaultValue,
+      placeholder: param.placeholder,
+      example: param.example,
+      type: param.type,
     }));
   } else {
     form.data = [];
   }
+  refreshSelectedFilesFromForm();
 };
 
 // 新增/编辑提交
@@ -270,7 +483,7 @@ const handleAddDataSource = () => {
           type: form.type,
           data: form.data.map(item => ({
             key: item.key,
-            value: item.value
+        value: item.value
           })),
           edit: addDataSourceDialog.value.isEdit
         };
@@ -289,7 +502,38 @@ const handleAddDataSource = () => {
         }
       })
       .catch((err) => {
+        if (err instanceof ApiRequestError && err.details?.errors?.length) {
+          (addDataSourceFormRef.value as any)?.setFields?.(
+            err.details.errors.map((item) => ({
+              name: item.field,
+              errors: [item.message],
+            }))
+          );
+        }
         console.error(err);
+      });
+};
+
+const handleTestDataSource = () => {
+  addDataSourceFormRef.value?.validate()
+      .then(() => {
+        testing.value = true;
+        const form = addDataSourceDialog.value.form;
+        return testDataSource({
+          type: form.type,
+          data: form.data.map((item) => ({
+            key: item.key,
+            value: item.value,
+          })),
+        });
+      })
+      .then((res) => {
+        if (res?.code === 0) {
+          message.success(res.message || t("datasource.test.success"));
+        }
+      })
+      .finally(() => {
+        testing.value = false;
       });
 };
 
@@ -315,12 +559,25 @@ const handleEdit = (row: any) => {
       const existingData = row.data?.find((d: any) => d.key === param.key);
       return {
         key: param.key,
-        value: existingData ? existingData.value : "",
+        value: existingData ? existingData.value : (param.defaultValue || ""),
         description: param.description,
-        required: param.required || false
+        required: param.required || false,
+        defaultValue: param.defaultValue,
+        placeholder: param.placeholder,
+        example: param.example,
+        type: param.type,
       };
     });
   }
+  refreshSelectedFilesFromForm();
+};
+
+const handleClone = (row: any) => {
+  handleEdit(row);
+  addDataSourceDialog.value.isEdit = false;
+  addDataSourceDialog.value.title = t("datasource.clone.title");
+  addDataSourceDialog.value.form.id = undefined;
+  addDataSourceDialog.value.form.name = `${row.name}-${t("datasource.clone.suffix")}`;
 };
 
 // 删除数据源
@@ -362,5 +619,80 @@ onMounted(() => {
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
+}
+
+.file-param-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.file-param-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.file-param-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.file-param-actions :deep(.ant-btn) {
+  min-width: 140px;
+}
+
+.selected-file-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.param-help {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.param-help-file {
+  margin-top: 0;
+}
+
+.required {
+  margin-right: 6px;
+  color: #ff4d4f;
+}
+
+@media (max-width: 768px) {
+  .data-source-container {
+    padding: 12px;
+  }
+
+  .table-operations {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-source-container :deep(.filter-bar),
+  .data-source-container .left,
+  .data-source-container .right {
+    width: 100%;
+  }
+
+  .data-source-container :deep(.filter-bar .ant-space-item),
+  .data-source-container :deep(.table-operations .ant-space-item) {
+    flex: 1 1 100%;
+  }
+
+  .data-source-container :deep(.filter-bar .ant-input),
+  .data-source-container :deep(.filter-bar .ant-select),
+  .data-source-container :deep(.table-operations .ant-btn) {
+    width: 100% !important;
+  }
 }
 </style>

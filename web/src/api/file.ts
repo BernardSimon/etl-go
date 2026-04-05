@@ -1,3 +1,4 @@
+import type { AxiosProgressEvent } from "axios";
 import { request } from '../utils/request';
 import {
     GetFileListRequest,
@@ -17,8 +18,20 @@ export const getFileList = (data: GetFileListRequest) => {
 /**
  * 上传文件
  */
-export const uploadFile = (data: FormData) => {
-    return request.post<ApiResponse<any>>('/files', data);
+export const uploadFile = (
+    data: FormData,
+    options?: {
+        signal?: AbortSignal;
+        onUploadProgress?: (event: AxiosProgressEvent) => void;
+    }
+) => {
+    return request.post<ApiResponse<any>>('/files', data, {
+        timeout: 0,
+        signal: options?.signal,
+        onUploadProgress: options?.onUploadProgress,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+    });
 };
 
 /**

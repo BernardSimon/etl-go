@@ -1,9 +1,11 @@
 package csvSink
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/params"
@@ -13,12 +15,13 @@ import (
 
 // Sink 实现了 core.Sink 接口，用于将数据以 CSV 格式写入文件。
 type Sink struct {
-	ID       string
-	filePath string // 输出文件路径。
-	file     *os.File
-	writer   *csv.Writer // CSV 写入器。
-	header   []string    // 可选的表头字段。
-	written  bool        // 是否已经写入过数据（防止重复写header）
+	ID         string
+	filePath   string // 输出文件路径。
+	file       *os.File
+	writer     *csv.Writer // CSV 写入器。
+	header     []string    // 可选的表头字段。
+	recordKeys []string
+	written    bool // 是否已经写入过数据（防止重复写header）
 }
 
 // NewSink 是 csv.Sink 的构造函数，由工厂调用。
@@ -38,7 +41,10 @@ func SinkCreator() (string, sink.Sink, *string, []params.Params) {
 	}
 }
 
-func (s *Sink) Open(config map[string]string, columnMapping map[string]string, _ *datasource.Datasource) error {
+func (s *Sink) Open(ctx context.Context, config map[string]string, columnMapping map[string]string, _ datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	filePath, ok := config["file_path"]
 	if !ok {
 		return fmt.Errorf("csv sink: config is missing or has invalid 'file_name'")
@@ -50,16 +56,35 @@ func (s *Sink) Open(config map[string]string, columnMapping map[string]string, _
 		return fmt.Errorf("csv sink: failed to create/open file: %w", err)
 	}
 	s.writer = csv.NewWriter(s.file)
+	s.header = nil
+	s.recordKeys = nil
+	s.written = false
 
-	for _, key := range columnMapping {
-		s.header = append(s.header, key)
+	keys := make([]string, 0, len(columnMapping))
+	for key := range columnMapping {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		leftCol := columnMapping[keys[i]]
+		rightCol := columnMapping[keys[j]]
+		if leftCol == rightCol {
+			return keys[i] < keys[j]
+		}
+		return leftCol < rightCol
+	})
+	for _, key := range keys {
+		s.recordKeys = append(s.recordKeys, key)
+		s.header = append(s.header, columnMapping[key])
 	}
 
 	return nil
 }
 
 // Write 将一批记录以 CSV 行的形式写入文件。
-func (s *Sink) Write(ID string, records []record.Record) error {
+func (s *Sink) Write(ctx context.Context, ID string, records []record.Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.ID = ID
 	if len(records) == 0 {
 		return nil
@@ -79,8 +104,8 @@ func (s *Sink) Write(ID string, records []record.Record) error {
 
 	for _, r := range records {
 		// 假设每个 record 都是 map[string]interface{} 或可转换为字符串数组
-		row := make([]string, 0, len(r))
-		for _, key := range s.header {
+		row := make([]string, 0, len(s.recordKeys))
+		for _, key := range s.recordKeys {
 			value := ""
 			if v, ok := r[key]; ok {
 				value = fmt.Sprintf("%v", v)

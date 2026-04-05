@@ -8,6 +8,20 @@ import axios, {
 import { useUserStore } from "../stores/user";
 import router from "../router";
 import { message } from "ant-design-vue";
+import i18n from "../i18n";
+import type { ApiErrorData } from "../types";
+
+export class ApiRequestError extends Error {
+  code?: number;
+  details?: ApiErrorData;
+
+  constructor(message: string, code?: number, details?: ApiErrorData) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.code = code;
+    this.details = details;
+  }
+}
 
 // 创建 axios 实例
 const service: AxiosInstance = axios.create({
@@ -38,7 +52,7 @@ service.interceptors.request.use(
     return config;
   },
   (error: AxiosError) => {
-    console.error("request error：", error);
+    console.error("Request error:", error);
     return Promise.reject(error);
   }
 );
@@ -56,21 +70,27 @@ service.interceptors.response.use(
         if (res.code === 3 || res.code === 4) {
           const userStore = useUserStore();
           userStore.resetUser();
-          message.error("登录已过期，请重新登录");
+          message.error(i18n.global.t("request.authExpired"));
           router.push("/login");
         } else {
           // 统一显示后端返回的错误信息
-          message.error(res.message || "请求失败");
+          message.error(res.message || i18n.global.t("request.failed"));
         }
 
-        return Promise.reject(new Error(res.message || "请求失败"));
+        return Promise.reject(
+          new ApiRequestError(
+            res.message || i18n.global.t("request.failed"),
+            res.code,
+            res.data
+          )
+        );
       }
     }
 
     return res;
   },
   (error: AxiosError) => {
-    console.error("响应错误：", error);
+    console.error("Response error:", error);
     const status = (error.response && error.response.status) || undefined;
     const code =
       (error.response && (error.response.data as any)?.code) || undefined;
@@ -79,21 +99,39 @@ service.interceptors.response.use(
     if (status === 401 || status === 4 || code === 3 || code === 4) {
       const userStore = useUserStore();
       userStore.resetUser();
-      router.push("/login");
-      message.error("登录已过期，请重新登录");
+      router.push({
+        path: "/login",
+        query: { redirect: router.currentRoute.value.fullPath },
+      });
+      message.error(i18n.global.t("request.authExpired"));
     } else {
       // 统一显示错误信息
-      const msg =
-        (error.response && (error.response.data as any)?.message) ||
-        error.message ||
-        "请求失败";
+      const isTimeout = error.code === "ECONNABORTED" || error.message?.toLowerCase().includes("timeout");
+      const isNetworkError = !error.response;
+      const msg = isTimeout
+        ? i18n.global.t("request.timeout")
+        : isNetworkError
+          ? i18n.global.t("request.networkError")
+          : (error.response && (error.response.data as any)?.message) ||
+            error.message ||
+            i18n.global.t("request.failed");
 
 
-      console.error("请求错误：", error);
+      console.error("Request error:", error);
       message.error(msg);
     }
 
-    return Promise.reject(error);
+    return Promise.reject(
+      new ApiRequestError(
+        String(
+          (error.response && (error.response.data as any)?.message) ||
+          error.message ||
+          i18n.global.t("request.failed")
+        ),
+        code,
+        (error.response && (error.response.data as any)?.data) || undefined
+      )
+    );
   }
 );
 

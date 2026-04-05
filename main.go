@@ -126,6 +126,8 @@ func startService(startWeb bool) {
 		openBrowser("http://" + config.Config.WebUrl)
 	}
 	r := gin.New()
+	// Keep multipart form memory bounded; larger uploads spill to temp files.
+	r.MaxMultipartMemory = 8 << 20
 	// 全局中间件 - CORS 配置
 	corsOrigins := config.Config.CorsOrigins
 	if len(corsOrigins) == 0 {
@@ -159,8 +161,8 @@ func startService(startWeb bool) {
 	srv := &http.Server{
 		Addr:         config.Config.ServerUrl,
 		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Minute,
+		WriteTimeout: 30 * time.Minute,
 		IdleTimeout:  60 * time.Second,
 	}
 	servers = append(servers, srv)

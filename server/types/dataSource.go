@@ -1,4 +1,4 @@
-package _type
+package types
 
 import params2 "github.com/BernardSimon/etl-go/etl/core/params"
 
@@ -8,6 +8,11 @@ type NewDataSourceRequest struct {
 	Type string    `json:"type" binding:"required"`
 	Data KeyValues `json:"data" binding:"required"`
 	Edit bool      `json:"edit"`
+}
+
+type TestDataSourceRequest struct {
+	Type string    `json:"type" binding:"required"`
+	Data KeyValues `json:"data" binding:"required"`
 }
 
 type DeleteDataSourceRequest struct {

@@ -1,6 +1,7 @@
 package jsonSink
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,9 +15,9 @@ import (
 // Sink 实现了 core.Sink 接口，用于将数据以 JSON 格式写入文件。
 type Sink struct {
 	ID       string
-	filePath string        // 输出文件路径。
-	file     *os.File      // 文件句柄。
-	encoder  *json.Encoder // JSON 编码器。
+	filePath string   // 输出文件路径。
+	file     *os.File // 文件句柄。
+	written  bool
 }
 
 func SinkCreator() (string, sink.Sink, *string, []params.Params) {
@@ -36,7 +37,10 @@ func SinkCreator() (string, sink.Sink, *string, []params.Params) {
 }
 
 // Open 打开输出文件并初始化编码器
-func (s *Sink) Open(config map[string]string, columnMapping map[string]string, _ *datasource.Datasource) error {
+func (s *Sink) Open(ctx context.Context, config map[string]string, columnMapping map[string]string, _ datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	filePath, ok := config["file_path"]
 	if !ok {
 		return fmt.Errorf("json sink: config is missing or has invalid 'file_name'")
@@ -49,43 +53,44 @@ func (s *Sink) Open(config map[string]string, columnMapping map[string]string, _
 		return fmt.Errorf("json sink: failed to create/open file: %w", err)
 	}
 
-	s.encoder = json.NewEncoder(s.file)
+	if _, err := s.file.WriteString("["); err != nil {
+		_ = s.file.Close()
+		s.file = nil
+		return fmt.Errorf("json sink: failed to initialize array start: %w", err)
+	}
+	s.written = false
 
 	return nil
 }
 
 // Write 将一批记录以 JSON 对象的形式写入文件。
-func (s *Sink) Write(ID string, records []record.Record) error {
+func (s *Sink) Write(ctx context.Context, ID string, records []record.Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.ID = ID
 	if len(records) == 0 {
 		return nil
 	}
 
-	if s.encoder == nil {
-		return fmt.Errorf("json sink: encoder is not initialized")
+	if s.file == nil {
+		return fmt.Errorf("json sink: file is not initialized")
 	}
 
-	// 写入JSON数组开始符号
-	if _, err := s.file.WriteString("[\n"); err != nil {
-		return fmt.Errorf("json sink: failed to write array start: %w", err)
-	}
-
-	// 写入每条记录
-	for i, r := range records {
-		if err := s.encoder.Encode(r); err != nil {
+	for _, r := range records {
+		payload, err := json.Marshal(r)
+		if err != nil {
 			return fmt.Errorf("json sink: failed to encode/write record: %w", err)
 		}
-		// 如果不是最后一条记录，添加逗号
-		if i < len(records)-1 {
+		if s.written {
 			if _, err := s.file.WriteString(",\n"); err != nil {
 				return fmt.Errorf("json sink: failed to write separator: %w", err)
 			}
 		}
-	}
-
-	// 写入JSON数组结束符号
-	if _, err := s.file.WriteString("\n]"); err != nil {
-		return fmt.Errorf("json sink: failed to write array end: %w", err)
+		if _, err := s.file.Write(payload); err != nil {
+			return fmt.Errorf("json sink: failed to write record payload: %w", err)
+		}
+		s.written = true
 	}
 
 	return nil
@@ -93,8 +98,19 @@ func (s *Sink) Write(ID string, records []record.Record) error {
 
 // Close 负责关闭文件句柄并保存元信息。
 func (s *Sink) Close() error {
-	if s.file != nil {
-		return s.file.Close()
+	if s.file == nil {
+		return nil
 	}
-	return nil
+	if s.written {
+		if _, err := s.file.WriteString("\n]"); err != nil {
+			_ = s.file.Close()
+			return fmt.Errorf("json sink: failed to finalize array: %w", err)
+		}
+	} else {
+		if _, err := s.file.WriteString("]"); err != nil {
+			_ = s.file.Close()
+			return fmt.Errorf("json sink: failed to finalize empty array: %w", err)
+		}
+	}
+	return s.file.Close()
 }

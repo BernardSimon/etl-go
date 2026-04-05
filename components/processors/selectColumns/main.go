@@ -1,6 +1,7 @@
 package selectColumns
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -34,7 +35,10 @@ func ProcessorCreator() (string, processor.Processor, []params.Params) {
 }
 
 // Open 从配置中解析需要保留的列名列表。
-func (p *Processor) Open(config map[string]string) error {
+func (p *Processor) Open(ctx context.Context, config map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	columnsVal, ok := config["columns"]
 	if !ok {
 		return fmt.Errorf("selectColumns processor: config is missing required key 'columns'")
@@ -59,7 +63,10 @@ func (p *Processor) Open(config map[string]string) error {
 //
 // 一个关键的设计决策是：如果在输入记录中找不到配置中指定的某个列名，它会被静默忽略，而不会报错。
 // 这使得管道对上游数据模式的微小变化（例如，某列被移除）更具弹性。
-func (p *Processor) Process(r record.Record) (record.Record, error) {
+func (p *Processor) Process(ctx context.Context, r record.Record) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	newRecord := make(record.Record, len(p.columnsToKeep))
 
 	for _, colName := range p.columnsToKeep {

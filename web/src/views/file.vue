@@ -1,11 +1,16 @@
 <template>
   <div class="p-5">
     <a-card :bordered="false">
-      <div class="flex flex-wrap gap-2 items-center justify-between mb-4">
+      <div class="file-toolbar flex flex-wrap gap-2 items-center justify-between mb-4">
         <h2>{{ t('file.title') }}</h2>
 
-        <!-- 右侧按钮组 -->
-        <div class="flex gap-2">
+        <div class="file-toolbar-actions">
+          <a-input-search
+            v-model:value="searchKeyword"
+            :placeholder="t('file.search.placeholder')"
+            allow-clear
+            @search="handleSearch"
+          />
           <a-button @click="fetchFileList">
             {{ t('file.refresh') }}
           </a-button>
@@ -29,10 +34,24 @@
           <template v-if="column.key === 'size'">
             {{ formatFileSize(record.size) }}
           </template>
+          <template v-else-if="column.key === 'name'">
+            <div class="file-name-cell">
+              <div class="file-name">{{ record.name }}</div>
+              <div class="file-meta">
+                {{ record.id }}
+              </div>
+            </div>
+          </template>
+          <template v-else-if="column.key === 'type'">
+            {{ record.ex_name || '-' }}
+          </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
               <a-button type="primary" size="small" @click="downloadFile(record)">
                 {{ t('file.table.action.download') }}
+              </a-button>
+              <a-button size="small" @click="copyFileId(record.id)">
+                {{ t('file.table.action.copyId') }}
               </a-button>
               <a-button type="primary" danger size="small" @click="handleDeleteFile(record)">
                 {{ t('file.table.action.delete') }}
@@ -47,29 +66,54 @@
     <a-modal
         v-model:open="uploadModal.visible"
         :title="t('file.upload.modal.title')"
+        :width="isNarrowScreen ? '96vw' : '520px'"
         @ok="handleUpload"
         @cancel="closeUploadModal"
         :confirm-loading="uploadModal.loading"
         :ok-text="t('file.upload.modal.upload')"
         :cancel-text="t('file.upload.modal.cancel')"
+        :mask-closable="!uploadModal.loading"
+        :closable="!uploadModal.loading"
+        :ok-button-props="{ disabled: uploadModal.fileList.length === 0 || uploadModal.loading }"
     >
       <a-upload-dragger
           v-model:file-list="uploadModal.fileList"
           :before-upload="beforeUpload"
           :max-count="1"
           :show-upload-list="true"
+          :disabled="uploadModal.loading"
       >
         <p class="ant-upload-drag-icon">
           <inbox-outlined></inbox-outlined>
         </p>
         <p class="ant-upload-text">{{ t('file.upload.select') }}</p>
+        <p class="ant-upload-hint">{{ t('file.upload.hint') }}</p>
       </a-upload-dragger>
+      <div v-if="uploadModal.fileList.length > 0" class="upload-meta">
+        <div>{{ t('file.upload.selectedSize', { size: formatFileSize(getSelectedFileSize()) }) }}</div>
+        <div v-if="uploadModal.loading">{{ t('file.upload.progress', { progress: uploadModal.progress }) }}</div>
+      </div>
+      <a-progress
+          v-if="uploadModal.loading"
+          :percent="uploadModal.progress"
+          :status="uploadModal.progress >= 100 ? 'success' : 'active'"
+          style="margin-top: 12px"
+      />
+      <a-button
+          v-if="uploadModal.loading"
+          danger
+          block
+          style="margin-top: 12px"
+          @click="cancelUpload"
+      >
+        {{ t('file.upload.cancelUpload') }}
+      </a-button>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import {message, Modal, UploadProps} from 'ant-design-vue';
 import { InboxOutlined } from '@ant-design/icons-vue';
 import { useI18n } from 'vue-i18n';
@@ -77,38 +121,37 @@ import { buildFileDownloadUrl, getFileList, uploadFile, deleteFile } from '../ap
 import {useUserStore} from "../stores/user.ts";
 
 const { t } = useI18n();
+const screenWidth = ref(window.innerWidth);
+const isNarrowScreen = computed(() => screenWidth.value < 768);
+const handleResize = () => {
+  screenWidth.value = window.innerWidth;
+};
 
 const loading = ref(false);
 const fileList = ref<any[]>([]);
+const searchKeyword = ref("");
 
 const pagination = reactive({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (total: number) => `共 ${total} 条`
+  showTotal: (total: number) => t("common.pagination.total", { total })
 });
 
 const columns=():any[] =>{return [
   {
-    title: "File ID",
-    dataIndex: 'id',
-    key: 'id',
-    align: 'center',
-    width:200
-  },
-  {
     title: t('file.table.column.name'),
     dataIndex: 'name',
     key: 'name',
-    align: 'center'
+    align: 'left'
   },
   {
-    title:  t('file.table.column.path'),
-    dataIndex: 'path',
-    key: 'path',
+    title:  t('file.table.column.type'),
+    dataIndex: 'ex_name',
+    key: 'type',
     align: 'center',
-    width:200
+    width:120
   },
   {
     title: t('file.table.column.size'),
@@ -133,14 +176,21 @@ const columns=():any[] =>{return [
 const uploadModal = reactive({
   visible: false,
   loading: false,
-  fileList: [] as any[]
+  progress: 0,
+  fileList: [] as any[],
+  controller: null as AbortController | null,
 });
 
 // 格式化文件大小
 const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return t("common.fileSize.zero");
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const sizes = [
+    t("common.fileSize.bytes"),
+    t("common.fileSize.kb"),
+    t("common.fileSize.mb"),
+    t("common.fileSize.gb"),
+  ];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
@@ -151,7 +201,8 @@ const fetchFileList = async () => {
   try {
     const res = await getFileList({
       page_size: pagination.pageSize,
-      page_no: pagination.current
+      page_no: pagination.current,
+      keyword: searchKeyword.value.trim(),
     });
 
     if (res && res.code === 0) {
@@ -166,6 +217,11 @@ const fetchFileList = async () => {
   }
 };
 
+const handleSearch = () => {
+  pagination.current = 1;
+  fetchFileList();
+};
+
 // 处理表格分页变化
 const handleTableChange = (pag: any) => {
   pagination.current = pag.current;
@@ -177,18 +233,44 @@ const handleTableChange = (pag: any) => {
 const showUploadModal = () => {
   uploadModal.visible = true;
   uploadModal.fileList = [];
+  uploadModal.progress = 0;
+  uploadModal.controller = null;
 };
 
 // 关闭上传模态框
 const closeUploadModal = () => {
+  if (uploadModal.loading) {
+    return;
+  }
   uploadModal.visible = false;
   uploadModal.fileList = [];
+  uploadModal.progress = 0;
+  uploadModal.controller = null;
 };
 
 // 上传前检查
 const beforeUpload: UploadProps['beforeUpload'] = file => {
   uploadModal.fileList = [file];
   return false;
+};
+
+const getSelectedFileSize = () => {
+  const selectedFile = uploadModal.fileList[0];
+  const rawFile = selectedFile?.originFileObj || selectedFile;
+  return rawFile?.size || 0;
+};
+
+const cancelUpload = () => {
+  uploadModal.controller?.abort();
+};
+
+const copyFileId = async (id: string) => {
+  try {
+    await navigator.clipboard.writeText(id);
+    message.success(t("file.copyId.success"));
+  } catch {
+    message.error(t("file.copyId.failed"));
+  }
 };
 
 // 处理文件上传
@@ -198,18 +280,37 @@ const handleUpload = async () => {
     return;
   }
   uploadModal.loading = true;
+  uploadModal.progress = 0;
+  uploadModal.controller = new AbortController();
   try {
     const formData = new FormData();
-    formData.append('file', uploadModal.fileList[0].originFileObj);
-    const res = await uploadFile(formData);
+    formData.append('file', uploadModal.fileList[0].originFileObj || uploadModal.fileList[0]);
+    const res = await uploadFile(formData, {
+      signal: uploadModal.controller.signal,
+      onUploadProgress: (event) => {
+        if (!event.total) {
+          return;
+        }
+        uploadModal.progress = Math.min(99, Math.round((event.loaded / event.total) * 100));
+      },
+    });
 
     if (res && res.code === 0) {
+      uploadModal.progress = 100;
       message.success(t('file.upload.success'));
+      uploadModal.loading = false;
       closeUploadModal();
       fetchFileList();
     }
+  } catch (error: any) {
+    if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") {
+      message.warning(t('file.upload.cancelled'));
+      return;
+    }
+    message.error(error?.message || t('request.failed'));
   } finally {
     uploadModal.loading = false;
+    uploadModal.controller = null;
   }
 };
 
@@ -242,6 +343,74 @@ const handleDeleteFile = (record: any) => {
 };
 
 onMounted(() => {
+  window.addEventListener("resize", handleResize);
   fetchFileList();
 });
+
+onUnmounted(() => {
+  window.removeEventListener("resize", handleResize);
+});
 </script>
+
+<style scoped lang="scss">
+.file-toolbar {
+  gap: 12px;
+}
+
+.file-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-toolbar-actions :deep(.ant-input-search) {
+  width: 260px;
+}
+
+.file-name-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-name {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.file-meta {
+  font-size: 12px;
+  color: #8c8c8c;
+  word-break: break-all;
+}
+
+@media (max-width: 768px) {
+  .p-5 {
+    padding: 12px;
+  }
+
+  .file-toolbar,
+  .file-toolbar > div,
+  .file-toolbar-actions {
+    width: 100%;
+  }
+
+  .file-toolbar > div:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .file-toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-toolbar-actions :deep(.ant-input-search) {
+    width: 100%;
+  }
+
+  .file-toolbar :deep(.ant-btn) {
+    width: 100%;
+  }
+}
+</style>

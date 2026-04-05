@@ -5,18 +5,19 @@ import (
 
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/server/model"
-	_type "github.com/BernardSimon/etl-go/server/type"
+	types "github.com/BernardSimon/etl-go/server/types"
+	fileUtil "github.com/BernardSimon/etl-go/server/utils/file"
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 )
 
 func GetDataSourceTypeList(_ *interface{}, _ string) (interface{}, error) {
 	list := factory.GetDatasourceTypeList()
-	var resp = make([]_type.GetDataSourceTypeListResponse, 0)
+	var resp = make([]types.GetDataSourceTypeListResponse, 0)
 	for _, v := range list {
 		store, _ := factory.CreateDataSource(v)
-		resp = append(resp, _type.GetDataSourceTypeListResponse{
+		resp = append(resp, types.GetDataSourceTypeListResponse{
 			Type:   v,
-			Params: store.Params,
+			Params: normalizeParams(store.Params),
 		})
 	}
 	return map[string]interface{}{
@@ -24,7 +25,49 @@ func GetDataSourceTypeList(_ *interface{}, _ string) (interface{}, error) {
 	}, nil
 }
 
-func NewDataSource(req *_type.NewDataSourceRequest, lang string) (interface{}, error) {
+func keyValuesToMap(values types.KeyValues) map[string]string {
+	config := make(map[string]string, len(values))
+	for _, item := range values {
+		config[item.Key] = item.Value
+	}
+	return config
+}
+
+func resolveDatasourceConfig(config map[string]string) error {
+	if fileID, ok := config["file_id"]; ok && fileID != "" {
+		filePath, err := fileUtil.GetFilePath(fileID)
+		if err != nil {
+			return err
+		}
+		config["file_path"] = filePath
+	}
+	return nil
+}
+
+func TestDataSource(req *types.TestDataSourceRequest, lang string) (interface{}, error) {
+	store, exists := factory.CreateDataSource(req.Type)
+	if exists != nil {
+		return nil, errors.New("invalid Datasource type")
+	}
+
+	config := keyValuesToMap(req.Data)
+	if err := resolveDatasourceConfig(config); err != nil {
+		return nil, err
+	}
+	for _, v := range store.Params {
+		if v.Required && config[v.Key] == "" {
+			return nil, errors.New("datasource params error")
+		}
+	}
+	if err := store.Handle.Init(config); err != nil {
+		return nil, errors.New("failed to test datasource connection")
+	}
+	_ = store.Handle.Close()
+
+	return i18n.Translate(lang, "datasource connection test success"), nil
+}
+
+func NewDataSource(req *types.NewDataSourceRequest, lang string) (interface{}, error) {
 	store, exists := factory.CreateDataSource(req.Type)
 	if exists != nil {
 		return nil, errors.New("invalid Datasource type")
@@ -86,7 +129,7 @@ func GetDataSourceList(_ *interface{}, _ string) (interface{}, error) {
 	}, nil
 }
 
-func DeleteDataSource(req *_type.DeleteDataSourceRequest, lang string) (interface{}, error) {
+func DeleteDataSource(req *types.DeleteDataSourceRequest, lang string) (interface{}, error) {
 	var dataSourceRecord model.DataSource
 	model.DB.Where("id = ?", req.Id).First(&dataSourceRecord)
 	if dataSourceRecord.ID == "" {

@@ -1,8 +1,9 @@
 package sql
 
 import (
-	"database/sql"
+	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
@@ -66,7 +67,10 @@ func VariableCreatorSqlite() (string, variable.Variable, *string, []params.Param
 	}
 }
 
-func (s *Variable) Get(config map[string]string, datasource *datasource.Datasource) (string, error) {
+func (s *Variable) Get(ctx context.Context, config map[string]string, ds datasource.Datasource) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	query, exist := config["query"]
 	if !exist {
 		return "", errors.New("variable query is required")
@@ -75,12 +79,19 @@ func (s *Variable) Get(config map[string]string, datasource *datasource.Datasour
 	if err != nil {
 		return "", err
 	}
-	db := (*datasource).Open().(*sql.DB)
-	defer (*datasource).Close()
-	var result string
-	err = db.QueryRow(query).Scan(&result)
+	if ds == nil {
+		return "", errors.New("variable datasource is required")
+	}
+	db, err := datasource.AsSQLDB(ds)
 	if err != nil {
-		err := (*datasource).Close()
+		return "", err
+	}
+	defer func() {
+		_ = ds.Close()
+	}()
+	var result string
+	err = db.QueryRowContext(ctx, query).Scan(&result)
+	if err != nil {
 		return "", err
 	}
 	return result, nil
@@ -99,7 +110,9 @@ func validVariable(config map[string]string) error {
 	// 检查是否包含危险关键字
 	dangerousKeywords := []string{"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE", "EXEC"}
 	for _, keyword := range dangerousKeywords {
-		if strings.Contains(upperSql, keyword) {
+		pattern := `\b` + regexp.QuoteMeta(keyword) + `\b`
+		matched, _ := regexp.MatchString(pattern, upperSql)
+		if matched {
 			return errors.New("variable Should Not Contains Dangerous Keywords")
 		}
 	}

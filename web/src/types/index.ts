@@ -20,6 +20,16 @@ export interface ApiResponse<T = any> {
   data: T;
 }
 
+export interface ApiFieldError {
+  field: string;
+  message: string;
+}
+
+export interface ApiErrorData {
+  errors?: ApiFieldError[];
+  [key: string]: any;
+}
+
 
 
 // 订阅信息
@@ -50,12 +60,16 @@ export interface SidebarItem {
 
 // 在 types/datasource.ts 或相应类型文件中添加
 export interface GetFileListRequest {
-  page_size: number;
-  page_no: number;
+  page_size?: number;
+  page_no?: number;
+  keyword?: string;
+  ids?: string;
 }
 
 export interface GetFileListResponse {
   total: number;
+  page_no?: number;
+  page_size?: number;
   list: FileInfo[];
 }
 
@@ -77,4 +91,7 @@ export interface Params {
   required:boolean;
   defaultValue:string;
   description: string;
+  placeholder?: string;
+  example?: string;
+  type?: string;
 }

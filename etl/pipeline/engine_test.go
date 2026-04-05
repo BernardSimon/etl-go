@@ -25,8 +25,10 @@ type mockSource struct {
 	readIndex int
 }
 
-func (m *mockSource) Open(_ map[string]string, _ *datasource.Datasource) error { return m.openErr }
-func (m *mockSource) Read() (record.Record, error) {
+func (m *mockSource) Open(_ context.Context, _ map[string]string, _ datasource.Datasource) error {
+	return m.openErr
+}
+func (m *mockSource) Read(_ context.Context) (record.Record, error) {
 	if m.readErr != nil {
 		return nil, m.readErr
 	}
@@ -38,7 +40,7 @@ func (m *mockSource) Read() (record.Record, error) {
 	return r, nil
 }
 func (m *mockSource) Close() error              { return m.closeErr }
-func (m *mockSource) Column() map[string]string  { return m.columns }
+func (m *mockSource) Column() map[string]string { return m.columns }
 
 type mockProcessor struct {
 	processFunc func(record.Record) (record.Record, error)
@@ -46,14 +48,14 @@ type mockProcessor struct {
 	closeErr    error
 }
 
-func (m *mockProcessor) Open(_ map[string]string) error { return m.openErr }
-func (m *mockProcessor) Process(r record.Record) (record.Record, error) {
+func (m *mockProcessor) Open(_ context.Context, _ map[string]string) error { return m.openErr }
+func (m *mockProcessor) Process(_ context.Context, r record.Record) (record.Record, error) {
 	if m.processFunc != nil {
 		return m.processFunc(r)
 	}
 	return r, nil
 }
-func (m *mockProcessor) Close() error                      { return m.closeErr }
+func (m *mockProcessor) Close() error                       { return m.closeErr }
 func (m *mockProcessor) HandleColumns(_ *map[string]string) {}
 
 type mockSink struct {
@@ -63,10 +65,10 @@ type mockSink struct {
 	closeErr       error
 }
 
-func (m *mockSink) Open(_ map[string]string, _ map[string]string, _ *datasource.Datasource) error {
+func (m *mockSink) Open(_ context.Context, _ map[string]string, _ map[string]string, _ datasource.Datasource) error {
 	return m.openErr
 }
-func (m *mockSink) Write(_ string, records []record.Record) error {
+func (m *mockSink) Write(_ context.Context, _ string, records []record.Record) error {
 	if m.writeErr != nil {
 		return m.writeErr
 	}

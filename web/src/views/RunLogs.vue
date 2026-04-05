@@ -2,11 +2,11 @@
   <div>
   <div class="p-5">
     <a-card :bordered="false">
-      <div class="flex flex-wrap gap-2 items-center justify-between mb-4">
+      <div class="runlog-toolbar mb-4">
         <!-- 左侧搜索条件 -->
         <a-form
           layout="inline"
-          class="flex-nowrap"
+          class="runlog-search-form"
           :model="searchForm"
           @finish="handleSearch"
         >
@@ -43,13 +43,23 @@
         </a-form>
 
         <!-- 右侧按钮组 -->
-        <div class="flex gap-2">
-          <a-button type="primary" @click="handleSearch" :loading="loading">
-            {{ t('runLog.search.query') }}
-          </a-button>
-          <a-button @click="resetSearch">
-            {{ t('runLog.search.reset') }}
-          </a-button>        </div>
+        <div class="runlog-actions">
+          <div class="auto-refresh-group">
+            <a-switch
+              v-model:checked="autoRefresh"
+              size="small"
+            />
+            <span class="auto-refresh-label">{{ t('runLog.autoRefresh.label') }}</span>
+          </div>
+          <div class="runlog-action-buttons">
+            <a-button type="primary" @click="handleSearch" :loading="loading">
+              {{ t('runLog.search.query') }}
+            </a-button>
+            <a-button @click="resetSearch">
+              {{ t('runLog.search.reset') }}
+            </a-button>
+          </div>
+        </div>
       </div>
 
       <a-table
@@ -72,6 +82,22 @@
           <template v-else-if="column.key === 'mission_name'">
             {{ record.task?.mission_name || "-" }}
           </template>
+          <template v-else-if="column.key === 'message'">
+            <div class="result-cell">
+              <span>{{ formatResultText(record.message) }}</span>
+              <a-button
+                v-if="record.message"
+                type="link"
+                size="small"
+                @click="showResultModal(record)"
+              >
+                {{ t("runLog.table.action.viewDetail") }}
+              </a-button>
+            </div>
+          </template>
+          <template v-else-if="column.key === 'duration'">
+            {{ formatDuration(record.start_time, record.end_time) }}
+          </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
               <a-button
@@ -79,7 +105,14 @@
                 size="small"
                 @click="() => showParamsModal(record)"
               >
-                查询参数
+                {{ t("runLog.table.action.viewParams") }}
+              </a-button>
+              <a-button
+                type="default"
+                size="small"
+                @click="showResultModal(record)"
+              >
+                {{ t("runLog.table.action.viewDetail") }}
               </a-button>
               <a-button
                 type="primary"
@@ -88,14 +121,14 @@
                 size="small"
                 @click="handleCancel(record)"
               >
-                中止
+                {{ t("runLog.table.action.cancel") }}
               </a-button>
               <a-button
                   type="primary"
                   size="small"
                   @click="showTaskFilesModal(record)"
               >
-                任务文件
+                {{ t("runLog.taskFiles.button") }}
               </a-button>
             </a-space>
           </template>
@@ -116,7 +149,7 @@
       v-model:open="taskFilesModal.visible"
       :title="t('runLog.taskFiles.modal.title')"
       :footer="null"
-      width="80%"
+      :width="isNarrowScreen ? '96vw' : '80%'"
       @cancel="closeTaskFilesModal"
   >
     <a-table
@@ -144,12 +177,46 @@
       </template>
     </a-table>
   </a-modal>
+  <a-modal
+      v-model:open="resultModal.visible"
+      :title="t('runLog.detail.modal.title')"
+      :footer="null"
+      :width="isNarrowScreen ? '96vw' : '720px'"
+  >
+    <a-descriptions :column="1" bordered size="small">
+      <a-descriptions-item :label="t('runLog.table.column.recordId')">
+        {{ resultModal.record?.id || '-' }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.table.column.missionName')">
+        {{ resultModal.record?.task?.mission_name || '-' }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.table.column.status')">
+        {{ getStatusText(resultModal.record?.status) }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.table.column.startTime')">
+        {{ resultModal.record?.start_time || '-' }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.table.column.endTime')">
+        {{ resultModal.record?.end_time || '-' }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.table.column.duration')">
+        {{ formatDuration(resultModal.record?.start_time, resultModal.record?.end_time) }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.detail.message')">
+        <pre class="detail-pre">{{ resultModal.record?.message || t('common.empty') }}</pre>
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('runLog.detail.payload')">
+        <pre class="detail-pre">{{ resultModal.payload }}</pre>
+      </a-descriptions-item>
+    </a-descriptions>
+  </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
-import { getTaskRecordList, cancelTaskRecord } from "../api/run_log";
+import { ref, reactive, onMounted, onUnmounted, watch, computed } from "vue";
+import { useRoute } from "vue-router";
+import { getTaskRecordList, cancelTaskRecord, getTaskRecordLogs, getTaskRecordParams } from "../api/run_log";
 import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import MissionConfigModal from "../components/MissionConfigModal.vue";
@@ -158,6 +225,7 @@ import { buildFileDownloadUrl, deleteFile, getFileListByTaskRecordID } from "../
 import {useUserStore} from "../../src/stores/user.ts"; // 新增引入
 
 const { t } = useI18n(); // 初始化i18n实例
+const route = useRoute();
 const getStatusOptions =(): { value: number; label: string }[] =>{return [
   { value: -1, label: t("runLog.search.status.all") }, // 改为国际化文本
   { value: 0, label: t("runLog.table.status.running") },
@@ -169,16 +237,21 @@ const searchForm = reactive({
   id: "",
   mission_name: "",
   status: -1 as number,
+  task_id: "",
 });
 
 const loading = ref(false);
+const autoRefresh = ref(true);
+const refreshTimer = ref<number | null>(null);
 const tableData = ref<any[]>([]);
+const screenWidth = ref(window.innerWidth);
+const isNarrowScreen = computed(() => screenWidth.value < 768);
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (total) => `共 ${total} 条`,
+  showTotal: (total) => t("common.pagination.total", { total }),
 });
 
 const getColumns=(): any[] =>{return [
@@ -232,11 +305,18 @@ const getColumns=(): any[] =>{return [
     width: 150,
   },
   {
+    title: t("runLog.table.column.duration"),
+    dataIndex: "duration",
+    key: "duration",
+    align: "center",
+    width: 120,
+  },
+  {
     title: t("runLog.table.column.actions"),
     key: "action",
     align: "center",
     fixed: "right",
-    width: 170,
+    width: 260,
   },
 ]};
 
@@ -266,6 +346,48 @@ const getStatusColor = (status: number) => {
   }
 };
 
+const formatResultText = (text?: string) => {
+  if (!text) return "-";
+  return text.length > 36 ? `${text.slice(0, 36)}...` : text;
+};
+
+const formatDuration = (start?: string, end?: string) => {
+  if (!start || !end) return "-";
+  const startAt = new Date(start).getTime();
+  const endAt = new Date(end).getTime();
+  if (Number.isNaN(startAt) || Number.isNaN(endAt) || endAt < startAt) {
+    return "-";
+  }
+  const totalSeconds = Math.floor((endAt - startAt) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+};
+
+const hasRunningRecords = () => tableData.value.some((item) => item.status === 0);
+const handleResize = () => {
+  screenWidth.value = window.innerWidth;
+};
+
+const stopAutoRefresh = () => {
+  if (refreshTimer.value) {
+    window.clearInterval(refreshTimer.value);
+    refreshTimer.value = null;
+  }
+};
+
+const startAutoRefresh = () => {
+  stopAutoRefresh();
+  if (!autoRefresh.value) {
+    return;
+  }
+  refreshTimer.value = window.setInterval(() => {
+    if (hasRunningRecords()) {
+      fetchData();
+    }
+  }, 10000);
+};
+
 // 获取运行记录
 const fetchData = async () => {
   loading.value = true;
@@ -276,16 +398,20 @@ const fetchData = async () => {
       mission_name: searchForm.mission_name || "",
       status: searchForm.status ?? -1,
       id: searchForm.id ?? "",
+      task_id: searchForm.task_id || "",
     });
     if (res && res.code === 0) {
       tableData.value = res.data.list || [];
       pagination.total = res.data.total || 0;
+      startAutoRefresh();
     } else {
       tableData.value = [];
       pagination.total = 0;
+      stopAutoRefresh();
     }
   } catch (error) {
     console.error("获取运行记录失败", error);
+    stopAutoRefresh();
   } finally {
     loading.value = false;
   }
@@ -302,6 +428,7 @@ const resetSearch = () => {
   searchForm.mission_name = "";
   searchForm.status = -1;
   searchForm.id = "";
+  searchForm.task_id = "";
   handleSearch();
 };
 
@@ -341,12 +468,41 @@ const paramsModal = ref<any>({
   record: null,
 });
 
+const resultModal = reactive({
+  visible: false,
+  record: null as any,
+  payload: "",
+});
+
 // 显示运行参数弹窗
 const showParamsModal = (record: any) => {
-  paramsModal.value.id = record.id;
-  paramsModal.value.data = record.data || null; 
-  paramsModal.value.record = record.task; // 这里传递的是mission
-  paramsModal.value.show = true;
+  getTaskRecordParams(record.id).then((res) => {
+    paramsModal.value.id = record.id;
+    paramsModal.value.data = res.data?.params || record.data || null;
+    paramsModal.value.record = {
+      mission_name: res.data?.mission_name || record.task?.mission_name || "-",
+      cron: record.task?.cron,
+    };
+    paramsModal.value.show = true;
+  });
+};
+
+const showResultModal = (record: any) => {
+  getTaskRecordLogs(record.id).then((res) => {
+    resultModal.visible = true;
+    resultModal.record = {
+      ...record,
+      status: res.data?.status ?? record.status,
+      message: res.data?.message ?? record.message,
+      start_time: res.data?.start_time ?? record.start_time,
+      end_time: res.data?.end_time ?? record.end_time,
+      task: {
+        ...(record.task || {}),
+        mission_name: res.data?.mission_name || record.task?.mission_name,
+      },
+    };
+    resultModal.payload = JSON.stringify(record.data || {}, null, 2);
+  });
 };
 
 // 任务文件模态框状态
@@ -361,7 +517,7 @@ const taskFilesModal = reactive({
 const taskFileColumns = (): any[] => {
   return [
     {
-      title: "File ID",
+      title: t("file.table.column.id"),
       dataIndex: 'id',
       key: 'id',
       align: 'center',
@@ -460,14 +616,126 @@ const handleDeleteTaskFile = (record: any) => {
   });
 };
 const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return t("common.fileSize.zero");
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const sizes = [
+    t("common.fileSize.bytes"),
+    t("common.fileSize.kb"),
+    t("common.fileSize.mb"),
+    t("common.fileSize.gb"),
+  ];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
  
 onMounted(() => {
+  searchForm.task_id = String(route.query.task_id || "");
+  searchForm.mission_name = String(route.query.mission_name || "");
+  window.addEventListener("resize", handleResize);
   fetchData();
 });
+
+watch(autoRefresh, () => {
+  startAutoRefresh();
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", handleResize);
+  stopAutoRefresh();
+});
 </script>
+
+<style scoped lang="scss">
+.runlog-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.runlog-search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.runlog-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.auto-refresh-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.runlog-action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.auto-refresh-label {
+  display: inline-flex;
+  align-items: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.result-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: left;
+}
+
+.detail-pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .p-5 {
+    padding: 12px;
+  }
+
+  .runlog-search-form,
+  .runlog-actions {
+    width: 100%;
+  }
+
+  .runlog-toolbar,
+  .runlog-actions,
+  .runlog-action-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auto-refresh-group {
+    justify-content: flex-start;
+  }
+
+  .runlog-search-form :deep(.ant-form-item),
+  .runlog-actions > * {
+    width: 100%;
+  }
+
+  .runlog-search-form :deep(.ant-input),
+  .runlog-search-form :deep(.ant-select),
+  .runlog-actions :deep(.ant-btn) {
+    width: 100% !important;
+  }
+
+  .result-cell {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>

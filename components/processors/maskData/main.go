@@ -1,6 +1,7 @@
 package maskData
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
@@ -47,7 +48,10 @@ func ProcessorCreator() (string, processor.Processor, []params.Params) {
 // 支持的脱敏方法 ([method](file:///Users/szy/Desktop/code/etl-go/components/processors/maskData/main.go#L23-L23)):
 // - "md5"
 // - "sha256"
-func (p *Processor) Open(config map[string]string) error {
+func (p *Processor) Open(ctx context.Context, config map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	column, ok := config["column"]
 	if !ok || column == "" {
 		return fmt.Errorf("maskData processor: config is missing or has invalid 'column'")
@@ -71,7 +75,10 @@ func (p *Processor) Open(config map[string]string) error {
 //   - **安全警告**: 这是一种单向哈希，不是加密。相同地输入值将始终产生相同地输出哈希值。
 //     这对于保持数据关联性很有用，但也意味着如果攻击者能够猜到原始值（例如，对于低复杂度的输入），
 //     他们可以通过彩虹表攻击来反查。请勿将其用于需要可逆加密的场景。
-func (p *Processor) Process(record record.Record) (record.Record, error) {
+func (p *Processor) Process(ctx context.Context, record record.Record) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	originalValue, ok := record[p.column]
 	if !ok {
 		// 如果列不存在，静默忽略。

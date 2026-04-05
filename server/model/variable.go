@@ -1,6 +1,6 @@
 package model
 
-import _type "github.com/BernardSimon/etl-go/server/type"
+import types "github.com/BernardSimon/etl-go/server/types"
 
 type Variable struct {
 	Model
@@ -9,5 +9,5 @@ type Variable struct {
 	Description  string           `json:"description" gorm:"size:255"`
 	DataSourceID *string          `json:"datasource_id" gorm:"size:36"`
 	DataSource   *DataSource      `json:"datasource"`
-	Value        *_type.KeyValues `json:"value" gorm:"type:json"`
+	Value        *types.KeyValues `json:"value" gorm:"type:json"`
 }

@@ -2,6 +2,7 @@
 
 const TOKEN_KEY = 'ltts_token'
 const USER_INFO_KEY = 'ltts_user_info'
+const LANGUAGE_KEY = 'ltts_language'
 
 /**
  * 获取 token
@@ -47,10 +48,31 @@ export const removeUserInfo = (): void => {
 }
 
 /**
+ * 获取语言
+ */
+export const getLanguage = (): string | null => {
+  return localStorage.getItem(LANGUAGE_KEY)
+}
+
+/**
+ * 设置语言
+ */
+export const setLanguage = (language: string): void => {
+  localStorage.setItem(LANGUAGE_KEY, language)
+}
+
+/**
+ * 移除语言
+ */
+export const removeLanguage = (): void => {
+  localStorage.removeItem(LANGUAGE_KEY)
+}
+
+/**
  * 清除所有存储
  */
 export const clearStorage = (): void => {
   removeToken()
   removeUserInfo()
+  removeLanguage()
 }
-

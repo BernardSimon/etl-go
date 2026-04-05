@@ -3,7 +3,9 @@ import { ref } from "vue";
 import { loginApi } from "../api/auth";
 import {
   getToken,
+  getLanguage,
   setToken,
+  setLanguage,
   clearStorage,
 } from "../utils/storage";
 
@@ -12,7 +14,7 @@ export const useUserStore = defineStore("user", () => {
   // 状态
   const token = ref<string>(getToken() || "");
 
-  const language = ref<string>("");
+  const language = ref<string>(getLanguage() || "");
 
   /**
    * 登录
@@ -30,6 +32,7 @@ export const useUserStore = defineStore("user", () => {
      */
     const changeLanguage = (lang: string) => {
         language.value = lang;
+        setLanguage(lang);
     }
 
   /**

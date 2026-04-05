@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	_type "github.com/BernardSimon/etl-go/server/type"
+	types "github.com/BernardSimon/etl-go/server/types"
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -30,7 +30,7 @@ func GetRealIP(c *gin.Context) string {
 }
 
 func RequestResponseMiddleware(c *gin.Context) {
-	var log _type.RequestLog
+	var log types.RequestLog
 	log.Method = c.Request.Method
 	log.Ip = GetRealIP(c)
 	log.Path = c.Request.URL.Path
@@ -90,16 +90,16 @@ func RequestResponseMiddleware(c *gin.Context) {
 	if maskData != "" {
 		log.Body = "mask"
 	}
-	response := _type.ResponseModel{
+	response := types.ResponseModel{
 		Code:    code,
 		Message: i18n.Translate(language, message),
 	}
 	log.Response = &response
+	data, exists := c.Get("data")
 	switch code {
 	case 0:
-		data, exists := c.Get("data")
 		if exists {
-			responseData := _type.ResponseWithData{
+			responseData := types.ResponseWithData{
 				Code:    code,
 				Message: i18n.Translate(language, message),
 				Data:    data,
@@ -111,16 +111,48 @@ func RequestResponseMiddleware(c *gin.Context) {
 		zap.L().Info("request success", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
 	case 1:
 		zap.L().Warn("request public error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
-		c.JSON(400, response)
+		if exists {
+			c.JSON(400, types.ResponseWithData{
+				Code:    code,
+				Message: i18n.Translate(language, message),
+				Data:    data,
+			})
+		} else {
+			c.JSON(400, response)
+		}
 	case 2:
 		zap.L().Warn("request service error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
-		c.JSON(422, response)
+		if exists {
+			c.JSON(422, types.ResponseWithData{
+				Code:    code,
+				Message: i18n.Translate(language, message),
+				Data:    data,
+			})
+		} else {
+			c.JSON(422, response)
+		}
 	case 3:
 		zap.L().Warn("request auth error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
-		c.JSON(401, response)
+		if exists {
+			c.JSON(401, types.ResponseWithData{
+				Code:    code,
+				Message: i18n.Translate(language, message),
+				Data:    data,
+			})
+		} else {
+			c.JSON(401, response)
+		}
 	default:
 		zap.L().Error("unknown request error", zap.String("service", "request_log"), zap.Any("content", log), zap.String("name", Md5(token)))
-		c.JSON(500, response)
+		if exists {
+			c.JSON(500, types.ResponseWithData{
+				Code:    code,
+				Message: i18n.Translate(language, message),
+				Data:    data,
+			})
+		} else {
+			c.JSON(500, response)
+		}
 	}
 	return
 }

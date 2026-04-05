@@ -1,10 +1,12 @@
 package json
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
@@ -52,7 +54,10 @@ func SourceCreator() (string, source.Source, *string, []params.Params) {
 // Open 负责解析配置、打开文件，并验证 JSON 格式的起始部分。
 // 一个关键步骤是它会立即尝试读取 JSON 数组的起始符'['。
 // 这是一种"快速失败"策略，可以及早确认文件格式是否符合预期。
-func (s *Source) Open(config map[string]string, dataSource *datasource.Datasource) error {
+func (s *Source) Open(ctx context.Context, config map[string]string, dataSource datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	filePath, ok := config["file_path"]
 	if !ok {
 		return fmt.Errorf("json source: config is missing required key 'file_path'")
@@ -71,6 +76,13 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 	if err != nil {
 		return fmt.Errorf("json source: failed to open file %s: %w", s.filePath, err)
 	}
+	closeOnError := true
+	defer func() {
+		if closeOnError && s.file != nil {
+			_ = s.file.Close()
+			s.file = nil
+		}
+	}()
 
 	s.decoder = json.NewDecoder(s.file)
 
@@ -111,6 +123,7 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 	for key := range keysSet {
 		s.keys = append(s.keys, key)
 	}
+	sort.Strings(s.keys)
 
 	// 回到文件开始位置以便后续正常读取
 	_, err = s.file.Seek(0, 0)
@@ -123,13 +136,17 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 		return err
 	} // Skip the opening '['
 
+	closeOnError = false
 	return nil
 }
 
 // Read 从 JSON 数组流中解码下一个对象，并将其转换为 core.Record。
 // 它依赖 `decoder.More()` 来判断数组中是否还有更多元素。
 // 当 `More()` 返回 false 时，表示已到达数组末尾，此时方法会返回 io.EOF 来通知管道数据已耗尽。
-func (s *Source) Read() (record.Record, error) {
+func (s *Source) Read(ctx context.Context) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// `decoder.More()` 是驱动流式读取的核心。
 	if !s.decoder.More() {
 		// 当没有更多元素时，我们期望读到数组的结束符 ']'。

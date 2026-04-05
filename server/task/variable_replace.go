@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
-	_type "github.com/BernardSimon/etl-go/server/type"
+	types "github.com/BernardSimon/etl-go/server/types"
 )
 
 var variablePattern = regexp.MustCompile(`\$\{([^}]+)}`)
@@ -13,7 +13,7 @@ var variablePattern = regexp.MustCompile(`\$\{([^}]+)}`)
 // ReplaceVariables 对 TaskData 中所有组件的 Params.Value 执行变量替换。
 // 只替换 Value 字段中的 ${...} 占位符，不修改 Key 和其他结构字段。
 // 返回深拷贝后的 TaskData，不修改原始数据。
-func ReplaceVariables(data *_type.TaskData) (*_type.TaskData, error) {
+func ReplaceVariables(data *types.TaskData) (*types.TaskData, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -23,7 +23,7 @@ func ReplaceVariables(data *_type.TaskData) (*_type.TaskData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal task data: %w", err)
 	}
-	var copied _type.TaskData
+	var copied types.TaskData
 	if err := json.Unmarshal(raw, &copied); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal task data: %w", err)
 	}
@@ -66,7 +66,7 @@ func ReplaceVariables(data *_type.TaskData) (*_type.TaskData, error) {
 }
 
 // collectParamValues 收集 TaskData 中所有 Params 的 Value 指针，用于原地替换。
-func collectParamValues(data *_type.TaskData) []*string {
+func collectParamValues(data *types.TaskData) []*string {
 	var ptrs []*string
 
 	if data.BeforeExecute != nil {

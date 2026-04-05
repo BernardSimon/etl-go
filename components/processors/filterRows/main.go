@@ -1,6 +1,7 @@
 package filterRows
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -49,7 +50,10 @@ func ProcessorCreator() (string, processor.Processor, []params.Params) {
 }
 
 // Open 从配置中解析过滤条件，包括列名、操作符和要比较的值。
-func (p *Processor) Open(config map[string]string) error {
+func (p *Processor) Open(ctx context.Context, config map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	column, ok := config["column"]
 	if !ok || column == "" {
 		return fmt.Errorf("filterRows processor: config is missing or has invalid 'column'")
@@ -74,7 +78,10 @@ func (p *Processor) Open(config map[string]string) error {
 // Process 根据定义的条件对记录进行评估。
 // 如果记录满足条件，则原样返回；如果不满足，则返回 (nil, nil) 将其丢弃。
 // 如果指定的 [column](file:///Users/szy/Desktop/code/etl-go/components/processors/maskData/main.go#L22-L22) 在记录中不存在，该记录也会被丢弃。
-func (p *Processor) Process(record record.Record) (record.Record, error) {
+func (p *Processor) Process(ctx context.Context, record record.Record) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	recordVal, ok := record[p.column]
 	if !ok {
 		// 如果记录中不存在要比较列，我们选择直接将其过滤掉。

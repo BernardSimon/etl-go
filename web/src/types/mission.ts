@@ -19,6 +19,9 @@ export interface ParamItem {
   required?: boolean;
   description?: string;
   defaultValue?: any;
+  placeholder?: string;
+  example?: string;
+  type?: string;
 }
 
 /**
@@ -104,7 +107,7 @@ export interface MissionFormData {
   processors: ProcessorConfig[];
   sink: ConfigItem;
   after_execute: ConfigItem;
-  task_type?: TaskType;
+  tasktypes?: TaskType;
 }
 
 /**

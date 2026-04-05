@@ -22,27 +22,29 @@ type SupportedLocale = typeof zhCN | typeof enUS;
 const locale = ref<SupportedLocale>();
 const userStore = useUserStore();
 
-// 设置语言并同步到store
-const setLanguage = (lang: keyof typeof supportedLocales) => {
-  userStore.changeLanguage( lang);
-  // userStore.setLanguage(lang);
+// 设置语言并同步到 store 与 i18n
+const setLanguage = async (lang: keyof typeof supportedLocales) => {
+  userStore.changeLanguage(lang);
+  locale.value = supportedLocales[lang];
+  await loadLanguageAsync(lang);
 };
 
 // 监听store中language的变化
 watch(
     () => userStore.language,
-    (newLang) => {
+    async (newLang) => {
       if (newLang && newLang in supportedLocales) {
         locale.value = supportedLocales[newLang as keyof typeof supportedLocales];
-        loadLanguageAsync(newLang)
+        await loadLanguageAsync(newLang)
       }
-    }
+    },
+    { immediate: true }
 );
 
 onMounted(() => {
   // 优先使用store中的语言设置
   if (userStore.language && userStore.language in supportedLocales) {
-    locale.value = supportedLocales[userStore.language as keyof typeof supportedLocales];
+    setLanguage(userStore.language as keyof typeof supportedLocales);
     return;
   }
 

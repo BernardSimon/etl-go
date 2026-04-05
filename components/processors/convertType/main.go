@@ -1,6 +1,7 @@
 package convertType
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -37,7 +38,10 @@ func ProcessorCreator() (string, processor.Processor, []params.Params) {
 	}
 }
 
-func (p *Processor) Open(config map[string]string) error {
+func (p *Processor) Open(ctx context.Context, config map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	column, ok := config["column"]
 	if !ok || column == "" {
 		return fmt.Errorf("convertType processor: config is missing or has invalid 'column'")
@@ -60,7 +64,10 @@ func (p *Processor) Open(config map[string]string) error {
 //   - 为了统一处理来自不同源（如数据库的 int、json 的 float64、csv 的 string）的原始类型，
 //     它首先将输入值格式化为字符串，然后再从字符串解析为目标类型。
 //   - 如果类型转换失败（例如，试图将 "abc" 转换为 integer），将返回一个错误，导致整个管道中止。
-func (p *Processor) Process(record record.Record) (record.Record, error) {
+func (p *Processor) Process(ctx context.Context, record record.Record) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	originalValue, ok := record[p.column]
 	if !ok {
 		// 如果列不存在，静默忽略。

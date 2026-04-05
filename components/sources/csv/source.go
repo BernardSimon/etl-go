@@ -1,6 +1,7 @@
 package csv
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -24,8 +25,10 @@ type Source struct {
 	file      *os.File    // 文件句柄
 	reader    *csv.Reader // Go 标准库的 CSV 读取器
 	header    []string    // 如果有表头，存储表头列名
+	firstRow  []string    // 无表头场景下缓存第一行数据
 	delimiter rune        // CSV文件的分隔符，默认为逗号
 	line      int         // 当前已读取的行数，用于精确的错误报告
+	hasHeader bool
 }
 
 func SourceCreator() (string, source.Source, *string, []params.Params) {
@@ -43,6 +46,12 @@ func SourceCreator() (string, source.Source, *string, []params.Params) {
 			Required:     true,
 			Description:  "The delimiter used in the CSV file, default is comma",
 		},
+		{
+			Key:          "has_header",
+			DefaultValue: "true",
+			Required:     true,
+			Description:  "Whether the CSV file has a header row",
+		},
 	}
 
 	return name, &Source{}, nil, paramList
@@ -51,7 +60,10 @@ func SourceCreator() (string, source.Source, *string, []params.Params) {
 // Open 负责解析配置、打开 CSV 文件并准备读取。
 // 它会处理文件路径、是否包含表头、自定义分隔符等配置项。
 // 如果配置了 has_header: true，它会预先读取第一行作为后续 Record 的键。
-func (s *Source) Open(config map[string]string, dataSource *datasource.Datasource) error {
+func (s *Source) Open(ctx context.Context, config map[string]string, dataSource datasource.Datasource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// 直接从 config 中获取 file_path，而不是通过 file_id 获取
 	filePath, ok := config["file_path"]
 	if !ok {
@@ -63,7 +75,20 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 	if delimiterStr, ok := config["delimiter"]; ok && len(delimiterStr) > 0 {
 		// 只取第一个字符作为分隔符。
 		s.delimiter = []rune(delimiterStr)[0]
+	} else {
+		s.delimiter = ','
 	}
+	s.hasHeader = config["has_header"] != "false"
+	s.header = nil
+	s.firstRow = nil
+
+	closeOnError := true
+	defer func() {
+		if closeOnError && s.file != nil {
+			_ = s.file.Close()
+			s.file = nil
+		}
+	}()
 
 	var err error
 	s.file, err = os.Open(s.filePath)
@@ -76,31 +101,49 @@ func (s *Source) Open(config map[string]string, dataSource *datasource.Datasourc
 
 	s.line = 0
 
-	// 如果有表头，立即读取并存储，以便后续的 Read() 调用使用。
-	s.header, err = s.reader.Read()
+	row, err := s.reader.Read()
 	if err != nil {
 		if err == io.EOF {
-			return fmt.Errorf("csv source: file is empty or contains only a header")
+			return fmt.Errorf("csv source: file is empty")
 		}
-		return fmt.Errorf("csv source: failed to read header: %w", err)
+		return fmt.Errorf("csv source: failed to read first row: %w", err)
 	}
 	s.line++
+	if s.hasHeader {
+		s.header = row
+	} else {
+		s.firstRow = row
+		s.header = make([]string, len(row))
+		for i := range row {
+			s.header[i] = fmt.Sprintf("column_%d", i+1)
+		}
+	}
 
+	closeOnError = false
 	return nil
 }
 
 // Read 读取 CSV 文件中的下一行，并将其转换为一个 core.Record。
 // 如果文件定义了表头，则使用表头作为键；否则，自动生成 "column_1", "column_2", ... 作为键。
 // 它还会校验每行数据的列数是否与表头匹配，以确保数据规整。
-func (s *Source) Read() (record.Record, error) {
-	row, err := s.reader.Read()
-	if err != nil {
-		if err == io.EOF {
-			return nil, io.EOF // 这是数据流正常结束的信号
-		}
-		return nil, fmt.Errorf("csv source: error reading data at line %d: %w", s.line+1, err)
+func (s *Source) Read(ctx context.Context) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	s.line++
+	row := s.firstRow
+	if row != nil {
+		s.firstRow = nil
+	} else {
+		var err error
+		row, err = s.reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				return nil, io.EOF // 这是数据流正常结束的信号
+			}
+			return nil, fmt.Errorf("csv source: error reading data at line %d: %w", s.line+1, err)
+		}
+		s.line++
+	}
 
 	r := make(record.Record)
 

@@ -1,6 +1,7 @@
 package renameColumn
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -37,7 +38,10 @@ func ProcessorCreator() (string, processor.Processor, []params.Params) {
 // Open 从配置中解析列的重命名映射。
 //
 // 它期望配置中有一个名为mapping的键，其值为一个从旧列名到新列名的映射。
-func (p *Processor) Open(config map[string]string) error {
+func (p *Processor) Open(ctx context.Context, config map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	mappingVal, ok := config["mapping"]
 	if !ok {
 		return fmt.Errorf("renameColumn processor: config is missing required key 'mapping'")
@@ -73,7 +77,10 @@ func (p *Processor) Open(config map[string]string) error {
 //
 // **强烈建议**：确保配置的 [mapping](file:///Users/szy/Desktop/code/etl-go/components/processors/renameColumn/main.go#L19-L19) 中，新列名不会与任何未被重命名的现有列名冲突。
 // ... existing code ...
-func (p *Processor) Process(r record.Record) (record.Record, error) {
+func (p *Processor) Process(ctx context.Context, r record.Record) (record.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	newRecord := make(record.Record, len(r))
 
 	for oldKey, value := range r {

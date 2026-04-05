@@ -199,18 +199,22 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		model.DB.Save(&missionRecord)
 	}()
 
-	var cfg pipeline.Config
+	cfg := pipeline.Config{
+		BatchSize:   config.Config.Pipeline.BatchSize,
+		ChannelSize: config.Config.Pipeline.ChannelSize,
+	}
 	if err != nil {
 		return
 	}
 	if mission.ID == "" {
 		return errors.New("任务不存在")
 	}
+	dsResolver := newDatasourceResolver()
 
 	// BeforeExecutor
 	var BeforeExecutorConfig *map[string]string
 	var BeforeExecutor *executor.Executor
-	var BeforeExecutorDatasource *datasource.Datasource
+	var BeforeExecutorDatasource datasource.Datasource
 	if mission.Data.BeforeExecute != nil {
 		beforeExecutorStore, err := factory.CreateExecutor(mission.Data.BeforeExecute.Type)
 		if err != nil {
@@ -220,7 +224,7 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		cfg := buildConfig(mission.Data.BeforeExecute.Params)
 		BeforeExecutorConfig = &cfg
 		if beforeExecutorStore.Datasource != nil {
-			ds, err := initDatasource(mission.Data.BeforeExecute.DataSource, *beforeExecutorStore.Datasource)
+			ds, err := dsResolver.initDatasource(mission.Data.BeforeExecute.DataSource, *beforeExecutorStore.Datasource)
 			if err != nil {
 				return err
 			}
@@ -234,9 +238,9 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		return err
 	}
 	SourceConfig := buildConfig(mission.Data.Source.Params)
-	var SourceDatasource *datasource.Datasource
+	var SourceDatasource datasource.Datasource
 	if SourceStore.Datasource != nil {
-		ds, err := initDatasource(mission.Data.Source.DataSource, *SourceStore.Datasource)
+		ds, err := dsResolver.initDatasource(mission.Data.Source.DataSource, *SourceStore.Datasource)
 		if err != nil {
 			return err
 		}
@@ -249,9 +253,9 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		return err
 	}
 	SinkConfig := buildConfig(mission.Data.Sinks.Params)
-	var SinkDatasource *datasource.Datasource
+	var SinkDatasource datasource.Datasource
 	if SinkStore.Datasource != nil {
-		ds, err := initDatasource(mission.Data.Sinks.DataSource, *SinkStore.Datasource)
+		ds, err := dsResolver.initDatasource(mission.Data.Sinks.DataSource, *SinkStore.Datasource)
 		if err != nil {
 			return err
 		}
@@ -276,7 +280,7 @@ func RunTask(mission model.Task, runBy string) (err error) {
 	// AfterExecutor
 	var AfterExecutorConfig *map[string]string
 	var AfterExecutor *executor.Executor
-	var AfterExecutorDatasource *datasource.Datasource
+	var AfterExecutorDatasource datasource.Datasource
 	if mission.Data.AfterExecute != nil {
 		afterExecuteStore, err := factory.CreateExecutor(mission.Data.AfterExecute.Type)
 		if err != nil {
@@ -286,7 +290,7 @@ func RunTask(mission model.Task, runBy string) (err error) {
 		cfg := buildConfig(mission.Data.AfterExecute.Params)
 		AfterExecutorConfig = &cfg
 		if afterExecuteStore.Datasource != nil {
-			ds, err := initDatasource(mission.Data.AfterExecute.DataSource, *afterExecuteStore.Datasource)
+			ds, err := dsResolver.initDatasource(mission.Data.AfterExecute.DataSource, *afterExecuteStore.Datasource)
 			if err != nil {
 				return err
 			}
@@ -324,7 +328,7 @@ func GetValueByName(name string) (string, error) {
 	for _, param := range *variable.Value {
 		variableConfig[param.Key] = param.Value
 	}
-	var vDatasource *datasource.Datasource
+	var vDatasource datasource.Datasource
 	if v.Datasource != nil {
 		if variable.DataSourceID == nil || *variable.DataSourceID == "" {
 			return "", errors.New("variable data source does not exist")
@@ -354,8 +358,8 @@ func GetValueByName(name string) (string, error) {
 		if err != nil {
 			return "", errors.New("variable data source open error")
 		}
-		vDatasource = &dsStore.Handle
+		vDatasource = dsStore.Handle
 	}
 	handle := v.Handle
-	return handle.Get(variableConfig, vDatasource)
+	return handle.Get(context.Background(), variableConfig, vDatasource)
 }

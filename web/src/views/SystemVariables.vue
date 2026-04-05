@@ -11,7 +11,12 @@
           </a-button>
         </div>
         <div class="right">
-          <a-button shape="circle" @click="fetchVariableList">
+          <a-button
+            shape="circle"
+            :title="t('common.refresh')"
+            :aria-label="t('common.refresh')"
+            @click="fetchVariableList"
+          >
             <template #icon>
               <ReloadOutlined />
             </template>
@@ -43,7 +48,7 @@
     <!-- 新增/编辑系统变量弹窗 -->
     <a-modal v-model:open="variableDialog.show" :title="variableDialog.title" width="600px" @ok="handleSaveVariable"
              @cancel="variableDialog.show = false">
-      <a-form ref="variableFormRef" :model="variableDialog.data" :rules="variableDialog.rules" :label-col="{ span: 6 }"
+      <a-form ref="variableFormRef" :model="variableDialog.data" :rules="variableRules" :label-col="{ span: 6 }"
               :wrapper-col="{ span: 17 }">
         <a-form-item :label="t('systemVariable.form.name.label')" name="name">
           <a-input v-model:value="variableDialog.data.name" :placeholder="t('systemVariable.form.name.placeholder')" />
@@ -83,12 +88,18 @@
             :key="index"
             :label="param.key"
             :name="['params', index, 'value']"
-            :rules="[{ required: param.required, message: `${param.key} is required` }]"
+            :rules="[{ required: param.required, message: t('datasource.param.required', { param: param.key }) }]"
         >
           <a-input
               v-model:value="param.value"
-              :placeholder="param.description"
+              :placeholder="param.placeholder || param.description"
           />
+          <div class="param-help">
+            <span v-if="param.description">{{ param.description }}</span>
+            <span v-if="param.defaultValue"> · {{ t('datasource.param.defaultValue', { value: param.defaultValue }) }}</span>
+            <span v-if="param.example"> · {{ t('datasource.param.example', { value: param.example }) }}</span>
+            <span v-if="param.type"> · {{ t('datasource.param.type', { value: param.type }) }}</span>
+          </div>
         </a-form-item>
 
         <a-form-item :label="t('systemVariable.form.description.label')" name="description">
@@ -111,9 +122,11 @@ import {
 import { message, Modal } from "ant-design-vue";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import type { FormInstance } from "ant-design-vue";
+import { RuleObject } from "ant-design-vue/es/form";
 import { useI18n } from "vue-i18n";
 import type { VariableTypeListItem } from "../api/systemVariables";
 import {SelectValue} from "ant-design-vue/es/select";
+import { ApiRequestError } from "../utils/request";
 
 const { t } = useI18n();
 
@@ -182,15 +195,15 @@ const variableDialog = ref<any>({
     params: [],
     description: ""
   },
-  rules: {
-    name: [{ required: true, message: t('systemVariable.form.name.required'), trigger: "blur" }],
-    type: [{ required: true, message: t('systemVariable.form.type.required'), trigger: "blur" }],
-    datasource_id: [{ required: false, message: t('systemVariable.form.datasource.required'), trigger: "blur" }],
-    description: [{ required: true, message: t('systemVariable.form.description.required'), trigger: "blur" }],
-  },
 });
 
 const variableFormRef = ref<FormInstance>();
+const variableRules = computed<{ [k: string]: RuleObject | RuleObject[] }>(() => ({
+  name: [{ required: true, message: t('systemVariable.form.name.required'), trigger: "blur" }],
+  type: [{ required: true, message: t('systemVariable.form.type.required'), trigger: "blur" }],
+  datasource_id: [{ required: false, message: t('systemVariable.form.datasource.required'), trigger: "blur" }],
+  description: [{ required: true, message: t('systemVariable.form.description.required'), trigger: "blur" }],
+}));
 
 // 获取系统变量列表
 const fetchVariableList = () => {
@@ -230,7 +243,11 @@ const onVariableTypeChange = (value: SelectValue) => {
       key: param.key,
       value: "",
       description: param.description,
-      required: param.required || false
+      required: param.required || false,
+      defaultValue: param.defaultValue,
+      placeholder: param.placeholder,
+      example: param.example,
+      type: param.type,
     }));
 
     // 设置数据源列表
@@ -288,7 +305,11 @@ const handleEdit = (row: any) => {
       key: param.key,
       value: paramValues[param.key] || "",
       description: param.description,
-      required: param.required || false
+      required: param.required || false,
+      defaultValue: param.defaultValue,
+      placeholder: param.placeholder,
+      example: param.example,
+      type: param.type,
     }));
   }
   // 触发类型变更以设置数据源列表
@@ -336,6 +357,15 @@ const handleSaveVariable = () => {
             );
             variableDialog.value.show = false;
             fetchVariableList();
+          }
+        }).catch((err: any) => {
+          if (err instanceof ApiRequestError && err.details?.errors?.length) {
+            (variableFormRef.value as any)?.setFields?.(
+              err.details.errors.map((item) => ({
+                name: item.field,
+                errors: [item.message],
+              }))
+            );
           }
         });
       })
@@ -390,5 +420,28 @@ onMounted(() => {
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
+}
+
+.param-help {
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .system-variables-container {
+    padding: 12px;
+  }
+
+  .table-operations {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .left,
+  .right,
+  :deep(.table-operations .ant-btn) {
+    width: 100%;
+  }
 }
 </style>

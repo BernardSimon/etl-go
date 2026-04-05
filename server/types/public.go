@@ -1,4 +1,4 @@
-package _type
+package types
 
 type ResponseModel struct {
 	Code    int    `json:"code"`
@@ -9,6 +9,25 @@ type ResponseWithData struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
+}
+
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+type ErrorData struct {
+	Errors []FieldError `json:"errors,omitempty"`
+}
+
+type ServiceError struct {
+	Code    int
+	Message string
+	Data    interface{}
+}
+
+func (e *ServiceError) Error() string {
+	return e.Message
 }
 
 type Mission struct {

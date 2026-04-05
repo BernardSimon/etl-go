@@ -2,6 +2,7 @@ import { request } from "../utils/request";
 import type { ApiResponse } from "../types";
 import {TypeData} from "@/src/types/mission.ts";
 
+let componentTypeCache: TypeData | null = null;
 
 
 
@@ -9,8 +10,20 @@ import {TypeData} from "@/src/types/mission.ts";
 /**
  * 获取任务列表
  */
-export const getTaskAll = () => {
-  return request.get<ApiResponse<any[]>>("/tasks");
+export const getTaskAll = (params?: {
+  page_no?: number;
+  page_size?: number;
+  search?: string;
+  mission_name?: string;
+  status?: number;
+  tasktypes?: "manual" | "scheduled";
+}) => {
+  return request.get<ApiResponse<{
+    list: any[];
+    total: number;
+    page_no: number;
+    page_size: number;
+  }>>("/tasks", { params });
 };
 
 /**
@@ -58,6 +71,34 @@ export const runTaskOnce = (data: { id: string }) => {
 /**
  * 参数接口
  */
-export const getTypeByComponent = () => {
-  return request.get<ApiResponse<TypeData>>("/components");
+export const getTypeByComponent = async (forceRefresh = false) => {
+  if (!forceRefresh && componentTypeCache) {
+    return {
+      code: 0,
+      message: "ok",
+      data: componentTypeCache,
+    } as ApiResponse<TypeData>;
+  }
+
+  const res = await request.get<ApiResponse<TypeData>>("/components");
+  componentTypeCache = res.data;
+  return res;
+};
+
+export const getTaskTemplates = () => {
+  return request.get<ApiResponse<{ list: any[] }>>("/task-templates");
+};
+
+export const saveTaskTemplate = (data: {
+  id?: string;
+  name: string;
+  cron: string;
+  tasktypes: "manual" | "scheduled";
+  params: any;
+}) => {
+  return request.post<ApiResponse<any>>("/task-templates", data);
+};
+
+export const deleteTaskTemplate = (id: string) => {
+  return request.delete<ApiResponse<any>>(`/task-templates/${id}`);
 };

@@ -1,6 +1,8 @@
 import { request } from "../utils/request.ts";
 import type {ApiResponse, Params} from "../types";
 
+let dataSourceTypeListCache: { list: { type: string; params: Params[] }[] } | null = null;
+
 /**
  * 获取数据源类型列表
  * {
@@ -12,8 +14,18 @@ import type {ApiResponse, Params} from "../types";
  *   }
  * }
  */
-export const getDataSourceTypeList = () => {
-  return request.get<ApiResponse<{ list: { type: string,params: Params[]  }[] }>>("/data-sources/types");
+export const getDataSourceTypeList = async (forceRefresh = false) => {
+  if (!forceRefresh && dataSourceTypeListCache) {
+    return {
+      code: 0,
+      message: "ok",
+      data: dataSourceTypeListCache,
+    } as ApiResponse<{ list: { type: string; params: Params[] }[] }>;
+  }
+
+  const res = await request.get<ApiResponse<{ list: { type: string,params: Params[]  }[] }>>("/data-sources/types");
+  dataSourceTypeListCache = res.data;
+  return res;
 };
 
 /**
@@ -28,6 +40,13 @@ export const addDataSource = (data: {
   edit: boolean;
 }) => {
   return request.post<ApiResponse<any>>("/data-sources", data);
+};
+
+export const testDataSource = (data: {
+  type: string;
+  data: {key: string,value: string}[];
+}) => {
+  return request.post<ApiResponse<string>>("/data-sources/test", data);
 };
 /**
  * 删除数据源

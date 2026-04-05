@@ -48,7 +48,7 @@ func MigrateDb() error {
 		}
 	}
 
-	err := DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &File{}, &TaskRecordFile{})
+	err := DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &TaskTemplate{}, &File{}, &TaskRecordFile{})
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func (e EncryptionSerializer) Scan(ctx context.Context, field *schema.Field, dst
 					// []byte 类型
 					fieldValue.SetBytes(decodedCipherText)
 				} else {
-					// 其他切片类型（如 _type.KeyValues）通过 JSON 反序列化处理
+					// 其他切片类型（如 types.KeyValues）通过 JSON 反序列化处理
 					err = json.Unmarshal(decodedCipherText, fieldValue.Addr().Interface())
 					if err != nil {
 						return fmt.Errorf("failed to unmarshal slice: %w", err)

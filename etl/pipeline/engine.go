@@ -46,14 +46,14 @@ const (
 type Engine struct {
 	id                       string
 	beforeExecutor           executor.Executor
-	beforeExecutorDatasource *datasource.Datasource
+	beforeExecutorDatasource datasource.Datasource
 	source                   source.Source
-	sourceDatasource         *datasource.Datasource
+	sourceDatasource         datasource.Datasource
 	processors               []processor.Processor
 	sink                     sink.Sink
-	sinkDatasource           *datasource.Datasource
+	sinkDatasource           datasource.Datasource
 	afterExecutor            executor.Executor
-	afterExecutorDatasource  *datasource.Datasource
+	afterExecutorDatasource  datasource.Datasource
 	batchSize                int
 	channelSize              int
 	cancel                   context.CancelFunc
@@ -62,7 +62,7 @@ type Engine struct {
 
 // NewEngine 创建一个新的管道引擎实例。
 
-func NewEngine(id string, beforeExecutor *executor.Executor, beforeExecutorDatasource *datasource.Datasource, source source.Source, sourceDatasource *datasource.Datasource, processors []processor.Processor, sink sink.Sink, sinkDatasource *datasource.Datasource, config Config, afterExecute *executor.Executor, afterExecuteDatasource *datasource.Datasource) *Engine {
+func NewEngine(id string, beforeExecutor *executor.Executor, beforeExecutorDatasource datasource.Datasource, source source.Source, sourceDatasource datasource.Datasource, processors []processor.Processor, sink sink.Sink, sinkDatasource datasource.Datasource, config Config, afterExecute *executor.Executor, afterExecuteDatasource datasource.Datasource) *Engine {
 	batchSize := config.BatchSize
 	if batchSize <= 0 {
 		batchSize = defaultBatchSize
@@ -182,22 +182,28 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	}()
 
 	// 2. 按顺序打开所有组件，这是运行前的准备和验证阶段。
-	if beforeExecuteConfig != nil {
-		zap.L().Info("Opening (Before Executor)...", zap.String("service", "etl"), zap.String("name", id))
-		if err = e.beforeExecutor.Open(*beforeExecuteConfig, e.beforeExecutorDatasource); err != nil {
-			zap.L().Error("Failed to open Before Executor", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
-			return fmt.Errorf("pipeline: failed to open before executor: %w", err)
-		} else {
-			zap.L().Info("Before Executor Doing Success", zap.String("service", "etl"), zap.String("name", id))
+	beforeExecutorOpened := false
+	defer func() {
+		if !beforeExecutorOpened {
+			return
 		}
 		zap.L().Info("Closing (Before Executor)...", zap.String("service", "etl"), zap.String("name", id))
-		if err := e.beforeExecutor.Close(); err != nil {
-			zap.L().Error("Failed to close Before Executor", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
-			return fmt.Errorf("pipeline: failed to close before executor: %w", err)
+		if closeErr := e.beforeExecutor.Close(); closeErr != nil {
+			zap.L().Error("Failed to close Before Executor", zap.Error(closeErr), zap.String("service", "etl"), zap.String("name", id))
+			err = errors.Join(err, fmt.Errorf("pipeline: failed to close before executor: %w", closeErr))
 		}
+	}()
+	if beforeExecuteConfig != nil {
+		zap.L().Info("Opening (Before Executor)...", zap.String("service", "etl"), zap.String("name", id))
+		if err = e.beforeExecutor.Open(runCtx, *beforeExecuteConfig, e.beforeExecutorDatasource); err != nil {
+			zap.L().Error("Failed to open Before Executor", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
+			return fmt.Errorf("pipeline: failed to open before executor: %w", err)
+		}
+		beforeExecutorOpened = true
+		zap.L().Info("Before Executor Doing Success", zap.String("service", "etl"), zap.String("name", id))
 	}
 	zap.L().Info("正在打开数据源 (Source)...", zap.String("service", "etl"), zap.String("name", id))
-	if err := e.source.Open(sourceConfig, e.sourceDatasource); err != nil {
+	if err := e.source.Open(runCtx, sourceConfig, e.sourceDatasource); err != nil {
 		zap.L().Error("数据源打开失败", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 		return fmt.Errorf("pipeline: failed to open source: %w", err)
 	}
@@ -205,7 +211,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 
 	for i, p := range e.processors {
 		zap.L().Info("正在打开处理器 (Processor) #"+strconv.Itoa(i+1)+" ("+processorConfigs[i].Type+")...", zap.String("service", "etl"), zap.String("name", id))
-		if err := p.Open(processorConfigs[i].Params); err != nil {
+		if err := p.Open(runCtx, processorConfigs[i].Params); err != nil {
 			zap.L().Error("处理器打开失败", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 			return fmt.Errorf("pipeline: failed to open processor #%d (%s): %w", i+1, processorConfigs[i].Type, err)
 		}
@@ -213,7 +219,7 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	}
 
 	zap.L().Info("正在打开数据汇 (Sink)...", zap.String("service", "etl"), zap.String("name", id))
-	if err := e.sink.Open(sinkConfig, column, e.sinkDatasource); err != nil {
+	if err := e.sink.Open(runCtx, sinkConfig, column, e.sinkDatasource); err != nil {
 		zap.L().Error("数据汇打开失败", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 		return fmt.Errorf("pipeline: failed to open sink: %w", err)
 	}
@@ -250,8 +256,8 @@ func (e *Engine) Run(id string, ctx context.Context, beforeExecuteConfig *map[st
 	}
 	if afterExecuteConfig != nil {
 		zap.L().Info("正在打开后处理器 (Executor)...", zap.String("service", "etl"), zap.String("name", id))
-		if err = e.afterExecutor.Open(*afterExecuteConfig, e.afterExecutorDatasource); err != nil {
-			zap.L().Error("后置处理器执行失败", zap.Error(finalErr), zap.String("service", "etl"), zap.String("name", id))
+		if err = e.afterExecutor.Open(runCtx, *afterExecuteConfig, e.afterExecutorDatasource); err != nil {
+			zap.L().Error("后置处理器执行失败", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 			return fmt.Errorf("pipeline: failed to open after executor: %w", err)
 		}
 		zap.L().Info("后置处理器执行成功", zap.String("service", "etl"), zap.String("name", id))
@@ -281,7 +287,7 @@ func (e *Engine) runSource(id string, ctx context.Context, outChan chan<- record
 			// 非阻塞地继续执行
 		}
 
-		readRecord, err := e.source.Read()
+		readRecord, err := e.source.Read(ctx)
 		if err != nil {
 			if err == io.EOF {
 				zap.L().Info("Source 已成功读取所有数据", zap.String("service", "etl"), zap.String("name", id))
@@ -318,7 +324,7 @@ func (e *Engine) runProcessor(id string, ctx context.Context, p processor.Proces
 			zap.L().Warn(fmt.Sprintf("Processor #%d (%s) worker 收到取消信号，正在停止...", num, pType), zap.String("service", "etl"), zap.String("name", id))
 			return
 		default:
-			processedRecord, err := p.Process(chanRecord)
+			processedRecord, err := p.Process(ctx, chanRecord)
 			if err != nil {
 				zap.L().Error(fmt.Sprintf("Processor #%d (%s) 处理记录时发生错误: %v", num, pType, err), zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 				errChan <- fmt.Errorf("processor #%d (%s) error: %w", num, pType, err)
@@ -358,7 +364,7 @@ func (e *Engine) runSink(id string, ctx context.Context, inChan <-chan record.Re
 			batch = append(batch, chanRecord)
 			if len(batch) >= e.batchSize {
 				zap.L().Info(fmt.Sprintf("正在刷入一批 %d 条记录...", len(batch)), zap.String("service", "etl"), zap.String("name", id))
-				if err := e.flush(batch); err != nil {
+				if err := e.flush(ctx, batch); err != nil {
 					zap.L().Error("Sink 刷入批次时发生错误", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 					errChan <- fmt.Errorf("sink error: %w", err)
 					e.cancel()
@@ -372,7 +378,7 @@ func (e *Engine) runSink(id string, ctx context.Context, inChan <-chan record.Re
 	// 循环结束后，处理最后一批不足 batchSize 的数据（已无错误信号时才写入）。
 	if len(batch) > 0 && ctx.Err() == nil {
 		zap.L().Info(fmt.Sprintf("正在刷入最后 %d 条记录...", len(batch)), zap.String("service", "etl"), zap.String("name", id))
-		if err := e.flush(batch); err != nil {
+		if err := e.flush(ctx, batch); err != nil {
 			zap.L().Error("Sink 刷入最后批次时发生错误", zap.Error(err), zap.String("service", "etl"), zap.String("name", id))
 			errChan <- fmt.Errorf("sink error on final flush: %w", err)
 		}
@@ -381,16 +387,16 @@ func (e *Engine) runSink(id string, ctx context.Context, inChan <-chan record.Re
 }
 
 // flush 将一个批次的数据写入 sink。
-func (e *Engine) flush(batch []record.Record) error {
+func (e *Engine) flush(ctx context.Context, batch []record.Record) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	return e.sink.Write(e.id, batch)
+	return e.sink.Write(ctx, e.id, batch)
 }
 
 // HandleInternalConfig resolves special config keys (file_id, file_ids, file_name) into file paths.
-// It returns a copy of the config with resolved paths and the output file ID (if any).
-// The original config map is NOT modified.
+// It mutates the provided config map in place by adding derived keys such as file_path/file_paths.
+// The returned string is the generated output file ID, when file_name is present.
 func HandleInternalConfig(config *map[string]string) (string, error) {
 	if config == nil {
 		return "", nil

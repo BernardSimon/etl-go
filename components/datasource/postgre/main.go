@@ -83,7 +83,7 @@ func (d *DataSource) Init(config map[string]string) error {
 	return nil
 }
 
-func (d *DataSource) Open() any {
+func (d *DataSource) DB() *sql.DB {
 	return d.db
 }
 
