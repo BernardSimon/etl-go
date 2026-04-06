@@ -12,11 +12,11 @@ type mockSQLDatasource struct {
 	db *sql.DB
 }
 
-func (m *mockSQLDatasource) Init(map[string]string) error      { return nil }
-func (m *mockSQLDatasource) Close() error                      { return nil }
-func (m *mockSQLDatasource) DB() *sql.DB                       { return m.db }
-func (m *mockSQLDatasource) ConfigMap() map[string]string      { return nil }
-func (m *mockSQLDatasource) ListTables() ([]TableInfo, error)  { return nil, nil }
+func (m *mockSQLDatasource) Init(map[string]string) error     { return nil }
+func (m *mockSQLDatasource) Close() error                     { return nil }
+func (m *mockSQLDatasource) DB() *sql.DB                      { return m.db }
+func (m *mockSQLDatasource) ConfigMap() map[string]string     { return nil }
+func (m *mockSQLDatasource) ListTables() ([]TableInfo, error) { return nil, nil }
 
 type mockMapDatasource struct {
 	cfg map[string]string
