@@ -1,4 +1,4 @@
-[# 中文](#中文说明) | [English](#english)
+[中文](#中文说明) | [English](#english)
 
 # ETL-Go
 
@@ -15,6 +15,16 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - 需要一套可二开、可嵌入、可扩展的 Go ETL 基础设施
 - 希望同时拥有 Web 管理台和后端 API
 
+## 🚀 在线 Demo 体验
+
+**体验地址**：[https://demo.ziyi.chat/](https://demo.ziyi.chat/)
+
+**账号**：admin  
+**密码**：password123
+
+> ⚠️ 重要提示：
+> - Demo 为公开系统，请勿输入个人数据库账号密码，注意保护数据库信息安全。
+> - Demo 系统数据会定时清空。
 ## 为什么选择 ETL-Go
 
 - 可视化与可编程兼得：既能通过 Web 页面管理任务，也能通过 `/api/v1` 接口接入自己的平台。
@@ -727,6 +737,7 @@ ETL-Go 适合继续演进到：
 
 <a id="english"></a>
 
+
 # ETL-Go
 
 [Switch to 中文](#中文说明) | [ETL-GO Documentation](https://etl.ziyi.chat/en)
@@ -740,6 +751,18 @@ It is a good fit for scenarios such as:
 - Needing a Go-based ETL foundation that is customizable, embeddable, and extensible
 - Wanting both a Web admin console and backend APIs
 
+
+
+## 🚀 Online Demo
+
+**Demo URL**: [https://demo.ziyi.chat/](https://demo.ziyi.chat/)
+
+**Username**: admin  
+**Password**: password123
+
+> ⚠️ **Important Notice:**
+> - The demo is a public system. **Do not enter any personal database credentials.**
+> - Demo data is periodically cleared.
 ## Why ETL-Go
 
 - Visual and programmable: manage tasks from the Web UI or integrate with your own platform through `/api/v1`.
