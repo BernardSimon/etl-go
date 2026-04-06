@@ -60,6 +60,8 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
   - 从数据库查询读取数据
   - 从 CSV / JSON 文件读取数据
   - 从 HTTP API 拉取数据
+  - 消费 Kafka Topic 消息
+  - 从 Redis 读取 Hash / List / String 数据
 - `Processors`
   - 类型转换
   - 行过滤
@@ -72,6 +74,8 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
   - 导出 JSON
   - 写入 Doris
   - 推送到 HTTP API
+  - 发布消息到 Kafka Topic
+  - 写入 Redis（Hash / List / String）
 
 ### 3. 丰富的数据连接能力
 
@@ -81,6 +85,8 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - PostgreSQL
 - SQLite
 - Doris
+- Kafka
+- Redis
 
 内置 Source：
 
@@ -88,6 +94,8 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - CSV Source
 - JSON Source
 - HTTP Source
+- Kafka Source
+- Redis Source
 
 内置 Sink：
 
@@ -96,6 +104,8 @@ ETL-Go 是一个面向数据集成场景的现代化 ETL 平台，提供可视�
 - JSON Sink
 - Doris Stream Load Sink
 - HTTP Sink
+- Kafka Sink
+- Redis Sink
 
 内置 Variable：
 
@@ -494,6 +504,21 @@ curl "http://localhost:8080/api/v1/tasks?${QUERY}&sign=${SIGN}" \
 2. 添加 `filterRows`、`convertType`、`maskData`
 3. 输出到 CSV / JSON / Doris
 
+### 场景五：Kafka 消息数据落库
+
+1. 创建 Kafka DataSource（配置 broker 地址）
+2. 新建任务，配置 Kafka Source（指定 topic、consumer group、消息数量）
+3. 可选添加 Processor 链做类型转换、字段过滤
+4. 配置数据库 Sink
+5. 手动执行或定时执行
+
+### 场景六：数据库数据写入 Redis 缓存
+
+1. 创建源数据库 DataSource 和 Redis DataSource
+2. 新建任务，配置 SQL Source 读取数据
+3. 配置 Redis Sink（hash 模式，指定 key_field 和 key_prefix）
+4. 手动执行或定时执行
+
 ## 内置组件一览
 
 ### DataSource
@@ -502,6 +527,8 @@ curl "http://localhost:8080/api/v1/tasks?${QUERY}&sign=${SIGN}" \
 - PostgreSQL
 - SQLite
 - Doris
+- Kafka
+- Redis
 
 ### Source
 
@@ -509,6 +536,8 @@ curl "http://localhost:8080/api/v1/tasks?${QUERY}&sign=${SIGN}" \
 - CSV
 - JSON
 - HTTP
+- Kafka
+- Redis
 
 ### Processor
 
@@ -525,6 +554,8 @@ curl "http://localhost:8080/api/v1/tasks?${QUERY}&sign=${SIGN}" \
 - JSON
 - Doris
 - HTTP
+- Kafka
+- Redis
 
 ### Executor
 
@@ -657,6 +688,107 @@ sink:
     send_mode: single
     body_template: '{"app_id": "myapp", "ts": {{.Timestamp}}, "record": {{.DataJSON}}}'
 ```
+
+## Kafka 组件详细说明
+
+### Kafka DataSource
+
+管理 Kafka broker 连接配置，供 Kafka Source 和 Kafka Sink 共用。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `brokers` | 是 | `localhost:9092` | Broker 地址，多个用逗号分隔，如 `host1:9092,host2:9092` |
+| `sasl_mechanism` | 否 | - | SASL 认证方式：`PLAIN` / `SCRAM-SHA-256` / `SCRAM-SHA-512`，留空禁用 |
+| `sasl_username` | 否 | - | SASL 用户名 |
+| `sasl_password` | 否 | - | SASL 密码 |
+| `tls_enabled` | 否 | `false` | 是否启用 TLS |
+
+### Kafka Source
+
+从 Kafka Topic 消费消息，每条消息转换为一条 Record。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `topic` | 是 | - | 要消费的 Kafka Topic |
+| `group_id` | 否 | `etl-go-consumer` | Consumer Group ID |
+| `value_format` | 否 | `json` | 消息格式：`json`（解析 JSON 字段）/ `string`（整体存入 `value` 字段） |
+| `key_field` | 否 | - | 非空时，将消息 Key 存入该字段名 |
+| `max_messages` | 否 | `0` | 最多读取多少条消息，`0` 表示读到超时为止 |
+| `timeout_seconds` | 否 | `30` | 等待单条消息的超时秒数，超时视为正常结束 |
+| `start_offset` | 否 | `earliest` | 起始位置：`earliest`（从头）/ `latest`（仅新消息） |
+
+### Kafka Sink
+
+将 Record 序列化后发布到 Kafka Topic。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `topic` | 是 | - | 目标 Kafka Topic |
+| `value_format` | 否 | `json` | 消息格式：`json`（序列化为 JSON 对象）/ `string`（取 `value` 字段原始字符串） |
+| `key_field` | 否 | - | 非空时，取该字段的值作为消息 Key |
+
+## Redis 组件详细说明
+
+### Redis DataSource
+
+管理 Redis 连接，供 Redis Source 和 Redis Sink 共用。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `addr` | 是 | `localhost:6379` | Redis 服务地址（host:port） |
+| `password` | 否 | - | Redis 密码（AUTH），不需要时留空 |
+| `db` | 否 | `0` | Redis 数据库编号（0-15） |
+| `tls_enabled` | 否 | `false` | 是否启用 TLS |
+
+### Redis Source
+
+从 Redis 读取数据，支持三种模式。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | 否 | `hash_scan` | 读取模式：`hash_scan` / `list` / `string_scan` |
+| `scan_match` | 否 | `*` | Key 匹配模式（Glob 风格），用于 `hash_scan` 和 `string_scan` |
+| `scan_count` | 否 | `100` | 每次 SCAN 返回的 Key 数量提示 |
+| `key` | 否 | - | 目标 List Key，`list` 模式必填 |
+| `list_start` | 否 | `0` | LRANGE 起始索引（`list` 模式） |
+| `list_stop` | 否 | `-1` | LRANGE 结束索引，`-1` 表示末尾（`list` 模式） |
+| `value_format` | 否 | `json` | `list` 模式下的元素格式：`json` / `string` |
+
+#### 模式说明
+
+- **`hash_scan`**：SCAN 匹配的 Key，对每个 Key 执行 HGETALL，生成一条 Record，额外包含 `_key` 字段
+- **`list`**：LRANGE 指定 Key，每个元素解析为 JSON Record（或 `{"value": ...}` 原始字符串）
+- **`string_scan`**：SCAN 匹配的 Key，GET 每个值，生成 `{"key": ..., "value": ...}` Record
+
+### Redis Sink
+
+将 Record 写入 Redis，支持三种模式，使用 Pipeline 批量执行。
+
+#### 参数
+
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | 否 | `hash` | 写入模式：`hash` / `list` / `string` |
+| `key_field` | 条件必填 | - | 用于生成 Redis Key 的字段名（`hash` 和 `string` 模式必填） |
+| `key_prefix` | 否 | - | Redis Key 前缀，如 `user:`，最终 Key = prefix + record[key_field] |
+| `key` | 条件必填 | - | 目标 List Key（`list` 模式必填） |
+| `value_field` | 否 | `value` | 用于 `string` 模式写入的值字段名 |
+
+#### 模式说明
+
+- **`hash`**：HSET `key_prefix + record[key_field]`，其余字段作为 Hash 字段写入
+- **`list`**：将 Record 序列化为 JSON 后 RPUSH 到指定 Key
+- **`string`**：SET `key_prefix + record[key_field]` = `record[value_field]`
 
 ## 安全能力
 
@@ -798,6 +930,8 @@ You can enable the following as needed:
   - Read data from database queries
   - Read data from CSV / JSON files
   - Fetch data from HTTP APIs
+  - Consume messages from Kafka Topics
+  - Read Hash / List / String data from Redis
 - `Processors`
   - Type conversion
   - Row filtering
@@ -810,6 +944,8 @@ You can enable the following as needed:
   - Export to JSON
   - Write to Doris
   - Push to HTTP APIs
+  - Publish messages to Kafka Topics
+  - Write to Redis (Hash / List / String)
 
 ### 3. Rich Data Connectivity
 
@@ -819,6 +955,8 @@ Built-in DataSource:
 - PostgreSQL
 - SQLite
 - Doris
+- Kafka
+- Redis
 
 Built-in Source:
 
@@ -826,6 +964,8 @@ Built-in Source:
 - CSV Source
 - JSON Source
 - HTTP Source
+- Kafka Source
+- Redis Source
 
 Built-in Sink:
 
@@ -834,6 +974,8 @@ Built-in Sink:
 - JSON Sink
 - Doris Stream Load Sink
 - HTTP Sink
+- Kafka Sink
+- Redis Sink
 
 Built-in Variable:
 
@@ -1140,6 +1282,21 @@ The current frontend already includes:
 2. Add `filterRows`, `convertType`, and `maskData`
 3. Output to CSV / JSON / Doris
 
+### Scenario 5: Kafka Message Data Ingestion
+
+1. Create a Kafka DataSource (configure broker addresses)
+2. Create a new task and configure Kafka Source (topic, consumer group, message limit)
+3. Optionally add a Processor chain for type conversion or field filtering
+4. Configure a database Sink
+5. Run manually or on schedule
+
+### Scenario 6: Write Database Data to Redis Cache
+
+1. Create a source database DataSource and a Redis DataSource
+2. Create a new task and configure SQL Source to read data
+3. Configure Redis Sink (hash mode, set key_field and key_prefix)
+4. Run manually or on schedule
+
 ## Built-In Components
 
 ### DataSource
@@ -1148,6 +1305,8 @@ The current frontend already includes:
 - PostgreSQL
 - SQLite
 - Doris
+- Kafka
+- Redis
 
 ### Source
 
@@ -1155,6 +1314,8 @@ The current frontend already includes:
 - CSV
 - JSON
 - HTTP
+- Kafka
+- Redis
 
 ### Processor
 
@@ -1171,6 +1332,8 @@ The current frontend already includes:
 - JSON
 - Doris
 - HTTP
+- Kafka
+- Redis
 
 ### Executor
 
@@ -1303,6 +1466,107 @@ sink:
     send_mode: single
     body_template: '{"app_id": "myapp", "ts": {{.Timestamp}}, "record": {{.DataJSON}}}'
 ```
+
+## Kafka Component Reference
+
+### Kafka DataSource
+
+Manages Kafka broker connection configuration, shared by Kafka Source and Kafka Sink.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `brokers` | Yes | `localhost:9092` | Broker addresses, comma-separated, e.g. `host1:9092,host2:9092` |
+| `sasl_mechanism` | No | - | SASL auth: `PLAIN` / `SCRAM-SHA-256` / `SCRAM-SHA-512`, leave empty to disable |
+| `sasl_username` | No | - | SASL username |
+| `sasl_password` | No | - | SASL password |
+| `tls_enabled` | No | `false` | Enable TLS |
+
+### Kafka Source
+
+Consumes messages from a Kafka Topic and converts each message into a Record.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `topic` | Yes | - | Kafka Topic to consume |
+| `group_id` | No | `etl-go-consumer` | Consumer Group ID |
+| `value_format` | No | `json` | Message format: `json` (parse JSON into fields) / `string` (store raw value in `value` field) |
+| `key_field` | No | - | If set, the message Key is stored in this field name |
+| `max_messages` | No | `0` | Maximum messages to read; `0` means read until timeout |
+| `timeout_seconds` | No | `30` | Timeout in seconds waiting for each message; timeout is treated as normal end |
+| `start_offset` | No | `earliest` | Starting position: `earliest` (from beginning) / `latest` (new messages only) |
+
+### Kafka Sink
+
+Serializes Records and publishes them to a Kafka Topic.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `topic` | Yes | - | Target Kafka Topic |
+| `value_format` | No | `json` | Message format: `json` (serialize as JSON object) / `string` (use raw `value` field) |
+| `key_field` | No | - | If set, the value of this field is used as the Kafka message Key |
+
+## Redis Component Reference
+
+### Redis DataSource
+
+Manages Redis connection configuration, shared by Redis Source and Redis Sink.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `addr` | Yes | `localhost:6379` | Redis server address (host:port) |
+| `password` | No | - | Redis password (AUTH), leave empty if not required |
+| `db` | No | `0` | Redis database number (0-15) |
+| `tls_enabled` | No | `false` | Enable TLS |
+
+### Redis Source
+
+Reads data from Redis in three modes.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `mode` | No | `hash_scan` | Read mode: `hash_scan` / `list` / `string_scan` |
+| `scan_match` | No | `*` | Key pattern (glob-style) for `hash_scan` and `string_scan`, e.g. `user:*` |
+| `scan_count` | No | `100` | Hint for number of keys per SCAN call |
+| `key` | No | - | Target List key; required for `list` mode |
+| `list_start` | No | `0` | LRANGE start index (`list` mode) |
+| `list_stop` | No | `-1` | LRANGE stop index, `-1` means end (`list` mode) |
+| `value_format` | No | `json` | Element format for `list` mode: `json` / `string` |
+
+#### Mode Reference
+
+- **`hash_scan`**: SCAN matching keys, HGETALL each key, produce one Record per key with an extra `_key` field
+- **`list`**: LRANGE the specified key, parse each element as a JSON Record (or `{"value": ...}` for string format)
+- **`string_scan`**: SCAN matching keys, GET each value, produce `{"key": ..., "value": ...}` Records
+
+### Redis Sink
+
+Writes Records to Redis using pipeline batching. Supports three modes.
+
+#### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `mode` | No | `hash` | Write mode: `hash` / `list` / `string` |
+| `key_field` | Conditional | - | Field name used to generate the Redis key (required for `hash` and `string` modes) |
+| `key_prefix` | No | - | Prefix for Redis keys, e.g. `user:`. Final key = prefix + record[key_field] |
+| `key` | Conditional | - | Target List key (required for `list` mode) |
+| `value_field` | No | `value` | Field name used as the Redis string value (`string` mode) |
+
+#### Mode Reference
+
+- **`hash`**: HSET `key_prefix + record[key_field]` with all other fields as Hash fields
+- **`list`**: Serialize Record as JSON and RPUSH to the specified key
+- **`string`**: SET `key_prefix + record[key_field]` = `record[value_field]`
 
 ## Security
 

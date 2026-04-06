@@ -4,7 +4,9 @@ import (
 	"errors"
 
 	dorisDatasource "github.com/BernardSimon/etl-go/components/datasource/doris"
+	kafkaDatasource "github.com/BernardSimon/etl-go/components/datasource/kafka"
 	mysqlDatasource "github.com/BernardSimon/etl-go/components/datasource/mysql"
+	redisDatasource "github.com/BernardSimon/etl-go/components/datasource/redis"
 	postgreDatasource "github.com/BernardSimon/etl-go/components/datasource/postgre"
 	sqliteDatasource "github.com/BernardSimon/etl-go/components/datasource/sqlite"
 	sqlExecutor "github.com/BernardSimon/etl-go/components/executor/sql"
@@ -17,10 +19,14 @@ import (
 	dorisSink "github.com/BernardSimon/etl-go/components/sinks/doris"
 	httpSink "github.com/BernardSimon/etl-go/components/sinks/http"
 	jsonSink "github.com/BernardSimon/etl-go/components/sinks/json"
+	kafkaSink "github.com/BernardSimon/etl-go/components/sinks/kafka"
+	redisSink "github.com/BernardSimon/etl-go/components/sinks/redis"
 	sqlSink "github.com/BernardSimon/etl-go/components/sinks/sql"
 	csvSource "github.com/BernardSimon/etl-go/components/sources/csv"
 	httpSource "github.com/BernardSimon/etl-go/components/sources/http"
 	jsonSource "github.com/BernardSimon/etl-go/components/sources/json"
+	kafkaSource "github.com/BernardSimon/etl-go/components/sources/kafka"
+	redisSource "github.com/BernardSimon/etl-go/components/sources/redis"
 	sqlSource "github.com/BernardSimon/etl-go/components/sources/sql"
 	sqlVariable "github.com/BernardSimon/etl-go/components/variable/sql"
 	"github.com/BernardSimon/etl-go/etl/factory"
@@ -40,8 +46,10 @@ func RegisterComponents() error {
 
 	// 注册数据源 (must be first, as other components depend on them)
 	errs = append(errs, factory.RegisterDataSource(dorisDatasource.DatasourceCreator))
+	errs = append(errs, factory.RegisterDataSource(kafkaDatasource.DatasourceCreator))
 	errs = append(errs, factory.RegisterDataSource(mysqlDatasource.DatasourceCreator))
 	errs = append(errs, factory.RegisterDataSource(postgreDatasource.DatasourceCreator))
+	errs = append(errs, factory.RegisterDataSource(redisDatasource.DatasourceCreator))
 	errs = append(errs, factory.RegisterDataSource(sqliteDatasource.DatasourceCreator))
 
 	// 注册变量执行器
@@ -60,6 +68,8 @@ func RegisterComponents() error {
 	errs = append(errs, factory.RegisterSource(csvSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(jsonSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(httpSource.SourceCreator))
+	errs = append(errs, factory.RegisterSource(kafkaSource.SourceCreator))
+	errs = append(errs, factory.RegisterSource(redisSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorSqlite))
 	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorDoris))
 
@@ -70,6 +80,8 @@ func RegisterComponents() error {
 	errs = append(errs, factory.RegisterSink(jsonSink.SinkCreator))
 	errs = append(errs, factory.RegisterSink(dorisSink.SinkCreator))
 	errs = append(errs, factory.RegisterSink(httpSink.SinkCreator))
+	errs = append(errs, factory.RegisterSink(kafkaSink.SinkCreator))
+	errs = append(errs, factory.RegisterSink(redisSink.SinkCreator))
 	errs = append(errs, factory.RegisterSink(sqlSink.SinkCreatorSqlite))
 
 	// 注册处理器

@@ -4,8 +4,10 @@ go 1.25.0
 
 require (
 	github.com/BernardSimon/etl-go/components/datasource/doris v0.0.0-00010101000000-000000000000
+	github.com/BernardSimon/etl-go/components/datasource/kafka v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/datasource/mysql v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/datasource/postgre v0.0.0-00010101000000-000000000000
+	github.com/BernardSimon/etl-go/components/datasource/redis v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/datasource/sqlite v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/executor/sql v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/processors/convertType v0.0.0-00010101000000-000000000000
@@ -16,9 +18,13 @@ require (
 	github.com/BernardSimon/etl-go/components/sinks/csv v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/sinks/doris v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/sinks/json v0.0.0-00010101000000-000000000000
+	github.com/BernardSimon/etl-go/components/sinks/kafka v0.0.0-00010101000000-000000000000
+	github.com/BernardSimon/etl-go/components/sinks/redis v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/sinks/sql v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/sources/csv v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/sources/json v0.0.0-00010101000000-000000000000
+	github.com/BernardSimon/etl-go/components/sources/kafka v0.0.0-00010101000000-000000000000
+	github.com/BernardSimon/etl-go/components/sources/redis v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/sources/sql v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/components/variable/sql v0.0.0-00010101000000-000000000000
 	github.com/BernardSimon/etl-go/etl/core v0.0.0-00010101000000-000000000000
@@ -44,8 +50,10 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -59,6 +67,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
@@ -67,12 +76,18 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
+	github.com/redis/go-redis/v9 v9.7.3 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/segmentio/kafka-go v0.4.47 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
+	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
+	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
@@ -92,8 +107,10 @@ require (
 
 replace (
 	github.com/BernardSimon/etl-go/components/datasource/doris => ./components/datasource/doris
+	github.com/BernardSimon/etl-go/components/datasource/kafka => ./components/datasource/kafka
 	github.com/BernardSimon/etl-go/components/datasource/mysql => ./components/datasource/mysql
 	github.com/BernardSimon/etl-go/components/datasource/postgre => ./components/datasource/postgre
+	github.com/BernardSimon/etl-go/components/datasource/redis => ./components/datasource/redis
 	github.com/BernardSimon/etl-go/components/datasource/sqlite => ./components/datasource/sqlite
 	github.com/BernardSimon/etl-go/components/executor/sql => ./components/executor/sql
 	github.com/BernardSimon/etl-go/components/processors/convertType => ./components/processors/convertType
@@ -104,9 +121,13 @@ replace (
 	github.com/BernardSimon/etl-go/components/sinks/csv => ./components/sinks/csv
 	github.com/BernardSimon/etl-go/components/sinks/doris => ./components/sinks/doris
 	github.com/BernardSimon/etl-go/components/sinks/json => ./components/sinks/json
+	github.com/BernardSimon/etl-go/components/sinks/kafka => ./components/sinks/kafka
+	github.com/BernardSimon/etl-go/components/sinks/redis => ./components/sinks/redis
 	github.com/BernardSimon/etl-go/components/sinks/sql => ./components/sinks/sql
 	github.com/BernardSimon/etl-go/components/sources/csv => ./components/sources/csv
 	github.com/BernardSimon/etl-go/components/sources/json => ./components/sources/json
+	github.com/BernardSimon/etl-go/components/sources/kafka => ./components/sources/kafka
+	github.com/BernardSimon/etl-go/components/sources/redis => ./components/sources/redis
 	github.com/BernardSimon/etl-go/components/sources/sql => ./components/sources/sql
 	github.com/BernardSimon/etl-go/components/variable/sql => ./components/variable/sql
 	github.com/BernardSimon/etl-go/etl/core => ./etl/core
