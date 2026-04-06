@@ -25,6 +25,9 @@ func (d *trackingDatasource) DB() *sql.DB {
 func (d *trackingDatasource) ConfigMap() map[string]string {
 	return d.cfg
 }
+func (d *trackingDatasource) ListTables() ([]TableInfo, error) {
+	return nil, nil
+}
 
 func TestSharedLease_ClosesBaseOnlyAfterLastRelease(t *testing.T) {
 	base := &trackingDatasource{}

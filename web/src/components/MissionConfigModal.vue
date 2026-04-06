@@ -150,6 +150,34 @@
                           </div>
                         </div>
                       </template>
+                      <a-auto-complete
+                          v-else-if="isTableParam(param)"
+                          v-model:value="formData.before_execute.params[index].value"
+                          :options="getTableOptions(formData.before_execute)"
+                          :placeholder="getPlaceholder(param)"
+                          :disabled="mode === 'read'"
+                          style="width: 100%"
+                          allow-clear
+                          filter-option
+                      />
+                      <template v-else-if="isQueryParam(param) && getTableOptions(formData.before_execute).length">
+                        <a-textarea
+                            v-model:value="formData.before_execute.params[index].value"
+                            :auto-size="{ minRows: 2, maxRows: 6 }"
+                            :placeholder="getPlaceholder(param)"
+                            :disabled="mode === 'read'"
+                        />
+                        <div v-if="mode !== 'read'" class="table-quick-pick">
+                          <a-select
+                              size="small"
+                              :placeholder="t('missionConfig.schema.quickPick')"
+                              style="width: 200px"
+                              @select="(v: any) => fillQuery(param, String(v))"
+                              :value="undefined"
+                              :options="getTableOptions(formData.before_execute)"
+                          />
+                        </div>
+                      </template>
                       <a-textarea
                           v-else
                           v-model:value="formData.before_execute.params[index].value"
@@ -262,6 +290,34 @@
                               {{ t('missionConfig.fileSelector.clear') }}
                             </a-button>
                           </div>
+                        </div>
+                      </template>
+                      <a-auto-complete
+                          v-else-if="isTableParam(param)"
+                          v-model:value="formData.source.params[index].value"
+                          :options="getTableOptions(formData.source)"
+                          :placeholder="getPlaceholder(param)"
+                          :disabled="mode === 'read'"
+                          style="width: 100%"
+                          allow-clear
+                          filter-option
+                      />
+                      <template v-else-if="isQueryParam(param) && getTableOptions(formData.source).length">
+                        <a-textarea
+                            v-model:value="formData.source.params[index].value"
+                            :auto-size="{ minRows: 2, maxRows: 6 }"
+                            :placeholder="getPlaceholder(param)"
+                            :disabled="mode === 'read'"
+                        />
+                        <div v-if="mode !== 'read'" class="table-quick-pick">
+                          <a-select
+                              size="small"
+                              :placeholder="t('missionConfig.schema.quickPick')"
+                              style="width: 200px"
+                              @select="(v: any) => fillQuery(param, String(v))"
+                              :value="undefined"
+                              :options="getTableOptions(formData.source)"
+                          />
                         </div>
                       </template>
                       <a-textarea
@@ -498,6 +554,34 @@
                           </div>
                         </div>
                       </template>
+                      <a-auto-complete
+                          v-else-if="isTableParam(param)"
+                          v-model:value="formData.sink.params[index].value"
+                          :options="getTableOptions(formData.sink)"
+                          :placeholder="getPlaceholder(param)"
+                          :disabled="mode === 'read'"
+                          style="width: 100%"
+                          allow-clear
+                          filter-option
+                      />
+                      <template v-else-if="isQueryParam(param) && getTableOptions(formData.sink).length">
+                        <a-textarea
+                            v-model:value="formData.sink.params[index].value"
+                            :auto-size="{ minRows: 2, maxRows: 6 }"
+                            :placeholder="getPlaceholder(param)"
+                            :disabled="mode === 'read'"
+                        />
+                        <div v-if="mode !== 'read'" class="table-quick-pick">
+                          <a-select
+                              size="small"
+                              :placeholder="t('missionConfig.schema.quickPick')"
+                              style="width: 200px"
+                              @select="(v: any) => fillQuery(param, String(v))"
+                              :value="undefined"
+                              :options="getTableOptions(formData.sink)"
+                          />
+                        </div>
+                      </template>
                       <a-textarea
                           v-else
                           v-model:value="formData.sink.params[index].value"
@@ -612,6 +696,34 @@
                           </div>
                         </div>
                       </template>
+                      <a-auto-complete
+                          v-else-if="isTableParam(param)"
+                          v-model:value="formData.after_execute.params[index].value"
+                          :options="getTableOptions(formData.after_execute)"
+                          :placeholder="getPlaceholder(param)"
+                          :disabled="mode === 'read'"
+                          style="width: 100%"
+                          allow-clear
+                          filter-option
+                      />
+                      <template v-else-if="isQueryParam(param) && getTableOptions(formData.after_execute).length">
+                        <a-textarea
+                            v-model:value="formData.after_execute.params[index].value"
+                            :auto-size="{ minRows: 2, maxRows: 6 }"
+                            :placeholder="getPlaceholder(param)"
+                            :disabled="mode === 'read'"
+                        />
+                        <div v-if="mode !== 'read'" class="table-quick-pick">
+                          <a-select
+                              size="small"
+                              :placeholder="t('missionConfig.schema.quickPick')"
+                              style="width: 200px"
+                              @select="(v: any) => fillQuery(param, String(v))"
+                              :value="undefined"
+                              :options="getTableOptions(formData.after_execute)"
+                          />
+                        </div>
+                      </template>
                       <a-textarea
                           v-else
                           v-model:value="formData.after_execute.params[index].value"
@@ -648,15 +760,51 @@
       :title="t('missionConfig.fileSelector.modalTitle')"
       @confirm="handleFileLibraryConfirm"
     />
+
+    <!-- 数据预览弹窗 -->
+    <a-modal
+      v-model:open="previewVisible"
+      :title="t('missionConfig.preview.modalTitle')"
+      width="80vw"
+      :footer="null"
+      :destroy-on-close="true"
+    >
+      <a-spin :spinning="previewLoading">
+        <div v-if="!previewLoading && previewColumns.length === 0" class="preview-empty">
+          {{ t('missionConfig.preview.empty') }}
+        </div>
+        <a-table
+          v-else
+          :columns="previewColumns"
+          :data-source="previewRows"
+          :row-key="'_key'"
+          :scroll="{ x: 'max-content', y: 400 }"
+          size="small"
+          :pagination="false"
+        />
+      </a-spin>
+    </a-modal>
     <template #footer>
       <a-space v-if="mode !== 'read'">
         <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
         <a-button :loading="templateSaving" @click="handleSaveTemplate">
           {{ t('missionConfig.template.save') }}
         </a-button>
+        <a-tooltip :title="props.id ? '' : t('missionConfig.preview.saveFirst')">
+          <a-button :loading="previewLoading" @click="handlePreview">
+            {{ t('missionConfig.preview.btn') }}
+          </a-button>
+        </a-tooltip>
         <a-button type="primary" @click="handleOk">{{ t('common.confirm') }}</a-button>
       </a-space>
-      <a-button v-else @click="handleCancel">{{ t('common.close') }}</a-button>
+      <a-space v-else>
+        <a-tooltip :title="props.id ? '' : t('missionConfig.preview.saveFirst')">
+          <a-button :loading="previewLoading" @click="handlePreview">
+            {{ t('missionConfig.preview.btn') }}
+          </a-button>
+        </a-tooltip>
+        <a-button @click="handleCancel">{{ t('common.close') }}</a-button>
+      </a-space>
     </template>
   </a-modal>
 </template>
@@ -665,7 +813,7 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
-import { addTask, updateTask, getTypeByComponent, saveTaskTemplate } from "../api/mission";
+import { addTask, updateTask, getTypeByComponent, saveTaskTemplate, previewTask } from "../api/mission";
 import type { ConfigItem, TaskType, ParamItem } from "../types/mission";
 import { useI18n } from "vue-i18n";
 import { getFileList } from "../api/file.ts";
@@ -673,6 +821,7 @@ import {RuleObject} from "ant-design-vue/es/form";
 import { ApiRequestError } from "../utils/request";
 import type { FileInfo } from "../types";
 import FileLibraryModal from "./FileLibraryModal.vue";
+import { getDataSourceSchema } from "../api/datasource";
 
 const { t } = useI18n();
 
@@ -1231,6 +1380,87 @@ const removeSelectedFile = (param: ParamItem, id: string) => {
   param.value = isMultiFileParam(param) ? nextIds.join(",") : "";
 };
 
+// ── 数据预览 ──────────────────────────────────────────────────────────────────
+
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewColumns = ref<{ title: string; dataIndex: string; key: string; ellipsis: boolean }[]>([])
+const previewRows = ref<Record<string, any>[]>([])
+
+const handlePreview = async () => {
+  if (!props.id) {
+    message.info(t('missionConfig.preview.saveFirst'))
+    return
+  }
+  previewLoading.value = true
+  previewVisible.value = true
+  previewColumns.value = []
+  previewRows.value = []
+  try {
+    const res = await previewTask(props.id)
+    if (res.code === 0) {
+      previewColumns.value = (res.data.columns || []).map(col => ({
+        title: col,
+        dataIndex: col,
+        key: col,
+        ellipsis: true,
+      }))
+      previewRows.value = (res.data.rows || []).map((row, i) => ({ ...row, _key: i }))
+    }
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+// ── Schema 发现 ───────────────────────────────────────────────────────────────
+
+interface TableInfo {
+  name: string
+  columns: { name: string; type: string; nullable: boolean }[]
+}
+
+// 按 datasource ID 缓存 schema，避免重复请求
+const schemaCache = ref<Record<string, TableInfo[]>>({})
+const schemaLoading = ref<Set<string>>(new Set())
+
+const loadSchema = async (datasourceId: string | null | undefined) => {
+  if (!datasourceId) return
+  if (schemaCache.value[datasourceId] !== undefined) return
+  if (schemaLoading.value.has(datasourceId)) return
+  schemaLoading.value = new Set([...schemaLoading.value, datasourceId])
+  try {
+    const res = await getDataSourceSchema(datasourceId)
+    if (res.code === 0) {
+      schemaCache.value = { ...schemaCache.value, [datasourceId]: res.data.tables || [] }
+    }
+  } catch {
+    schemaCache.value = { ...schemaCache.value, [datasourceId]: [] }
+  } finally {
+    const next = new Set(schemaLoading.value)
+    next.delete(datasourceId)
+    schemaLoading.value = next
+  }
+}
+
+// datasource 变更时自动拉取 schema
+watch(() => formData.source.data_source, loadSchema)
+watch(() => formData.sink.data_source, loadSchema)
+watch(() => formData.before_execute.data_source, loadSchema)
+watch(() => formData.after_execute.data_source, loadSchema)
+
+const getTableOptions = (config: ConfigItem) => {
+  if (!config.data_source) return []
+  return (schemaCache.value[config.data_source] || []).map(t => ({ value: t.name }))
+}
+
+const isTableParam = (param: ParamItem) => param.key === 'table'
+const isQueryParam = (param: ParamItem) => param.key === 'query'
+
+// 点击表名：将 query 填入 SELECT * FROM <table>
+const fillQuery = (param: ParamItem, tableName: string) => {
+  param.value = `SELECT * FROM ${tableName}`
+}
+
 // const formatFileSize = (bytes: number): string => {
 //   if (bytes === 0) return '0 Bytes';
 //   const k = 1024;
@@ -1436,6 +1666,16 @@ const removeSelectedFile = (param: ParamItem, id: string) => {
 
 .file-param-actions :deep(.ant-btn) {
   min-width: 140px;
+}
+
+.table-quick-pick {
+  margin-top: 6px;
+}
+
+.preview-empty {
+  text-align: center;
+  color: #999;
+  padding: 40px 0;
 }
 
 

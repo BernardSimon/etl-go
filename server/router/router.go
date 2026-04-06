@@ -1,6 +1,7 @@
 package router
 
 import (
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -30,7 +31,7 @@ func Register(engine *gin.Engine) {
 	v1.POST("/login", func(c *gin.Context) {
 		AdminAPI(api.LoginWithRateLimit(c), true)(c)
 	})
-	v1.POST("/refresh-token", AdminAPI(api.RefreshToken, true))
+	v1.POST("/refresh-token", AdminAPI(api.RefreshToken))
 	v1.Use(api.AuthMiddleware)
 
 	// 数据源
@@ -38,6 +39,7 @@ func Register(engine *gin.Engine) {
 	v1.POST("/data-sources/test", AdminAPI(api.TestDataSource, true))
 	v1.GET("/data-sources", AdminAPI(api.GetDataSourceList))
 	v1.GET("/data-sources/types", AdminAPI(api.GetDataSourceTypeList))
+	v1.GET("/data-sources/:id/schema", AdminAPI(api.GetDataSourceSchema))
 	v1.DELETE("/data-sources/:id", AdminAPI(api.DeleteDataSource))
 
 	// 变量
@@ -61,6 +63,7 @@ func Register(engine *gin.Engine) {
 	v1.POST("/tasks/:id/schedule", AdminAPI(api.RunTask))
 	v1.POST("/tasks/:id/stop", AdminAPI(api.StopTask))
 	v1.POST("/tasks/:id/run", AdminAPI(api.RunTaskOnce))
+	v1.POST("/tasks/:id/preview", AdminAPI(api.PreviewTask))
 
 	// 组件配置
 	v1.GET("/components", AdminAPI(api.GetTypeByComponent))
@@ -78,29 +81,38 @@ func Register(engine *gin.Engine) {
 	v1.DELETE("/files/:id", AdminAPI(api.DeleteFile))
 }
 
-func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) gin.HandlerFunc {
+// AdminAPI 是通用路由处理器工厂，URI 参数和 Body 参数完全分离：
+//   - URI: c.ShouldBindUri 绑定（含 validator），URI 结构体只含 uri tag，与 body 无交叉
+//   - Body: c.ShouldBind 绑定（GET→query form，POST/PUT→JSON body），含 validator
+func AdminAPI[URI, Body any](f func(*URI, *Body, string) (interface{}, error), maskData ...bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		lang := c.GetString("language")
 		if len(maskData) > 0 && maskData[0] {
 			c.Set("maskData", "true")
 		}
-		var req T
-		// 先绑定 URI 路径参数（如 :id），再绑定 body/query，避免 URI 字段 required 验证提前失败
-		if err := c.ShouldBindUri(&req); err != nil {
+
+		// 第一步：URI 参数绑定（含 validator）
+		// URI 结构体只含 uri tag 字段，与 body 完全隔离，validator 不会误判
+		var uri URI
+		if err := c.ShouldBindUri(&uri); err != nil {
 			c.Set("code", 1)
 			c.Set("message", "invalid request parameters")
-			c.Set("data", buildValidationErrorData(err, req, lang))
+			c.Set("data", buildValidationErrorData(err, uri, lang))
 			c.Abort()
 			return
 		}
-		if err := c.ShouldBind(&req); err != nil {
+
+		// 第二步：Body/Query 参数绑定 + validator
+		var body Body
+		if err := c.ShouldBind(&body); err != nil && err != io.EOF {
 			c.Set("code", 1)
 			c.Set("message", "invalid request parameters")
-			c.Set("data", buildValidationErrorData(err, req, lang))
+			c.Set("data", buildValidationErrorData(err, body, lang))
 			c.Abort()
 			return
 		}
-		resp, err := f(&req, lang)
+
+		resp, err := f(&uri, &body, lang)
 		if err != nil {
 			if serviceErr, ok := err.(*types.ServiceError); ok {
 				c.Set("code", serviceErr.Code)
@@ -114,12 +126,10 @@ func AdminAPI[T any](f func(*T, string) (interface{}, error), maskData ...bool) 
 			}
 			c.Abort()
 			return
-		} else {
-			c.Set("code", 0)
-			c.Set("data", resp)
-			c.Set("message", "ok")
-			return
 		}
+		c.Set("code", 0)
+		c.Set("data", resp)
+		c.Set("message", "ok")
 	}
 }
 
@@ -139,11 +149,11 @@ func buildValidationErrorData[T any](err error, req T, lang string) types.ErrorD
 		fieldName := fieldErr.Field()
 		if sf, ok := reqType.FieldByName(fieldName); ok {
 			jsonTag := sf.Tag.Get("json")
-			uriTag := sf.Tag.Get("uri")
+			formTag := sf.Tag.Get("form")
 			if jsonTag != "" && jsonTag != "-" {
 				fieldName = strings.Split(jsonTag, ",")[0]
-			} else if uriTag != "" && uriTag != "-" {
-				fieldName = strings.Split(uriTag, ",")[0]
+			} else if formTag != "" && formTag != "-" {
+				fieldName = strings.Split(formTag, ",")[0]
 			}
 		}
 		message := "invalid field"

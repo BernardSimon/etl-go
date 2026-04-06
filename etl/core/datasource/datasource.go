@@ -11,12 +11,10 @@ type DatasourceCreator func() (name string, datasource Datasource, params []para
 type Datasource interface {
 	Init(map[string]string) error
 	Close() error
-}
-
-type SQLDBProvider interface {
+	// DB 返回底层 *sql.DB，不支持 SQL 的实现返回 nil。
 	DB() *sql.DB
-}
-
-type ConfigMapProvider interface {
+	// ConfigMap 返回配置键值对，不需要配置映射的实现返回 nil。
 	ConfigMap() map[string]string
+	// ListTables 返回所有表及列信息，不支持 schema 发现的实现返回空切片。
+	ListTables() ([]TableInfo, error)
 }

@@ -1,6 +1,6 @@
 <template>
   <a-layout style="min-height: 100vh">
-    <a-layout-sider v-model:collapsed="collapsed" :width="200">
+    <a-layout-sider v-model:collapsed="collapsed" :width="200" class="sider">
       <div class="logo">
         <div v-if="!collapsed" class="logo-text">ETL-GO</div>
         <div v-else class="logo-text-mini">ETL</div>
@@ -152,16 +152,9 @@
           href="https://github.com/BernardSimon/etl-go"
           target="_blank"
         >
-          {{ t("layout.footer.poweredBy") }}
+          Powered by ETL-GO
         </a>
-        <span class="text-gray-400"> · {{ t("layout.footer.derivedFrom") }}</span>
-        <a
-          href="https://github.com/changhe626/go-pocket-etl"
-          target="_blank"
-          class="text-gray-400"
-          >go-pocket-etl</a
-        >
-        <span class="text-gray-400">{{ t("layout.footer.license") }}</span>
+        <span class="text-gray-400"> · v0.2.5</span>
       </a-layout-footer>
     </a-layout>
   </a-layout>
@@ -398,6 +391,18 @@ const handleLanguageClick = async (e: any) => {
 
 .trigger-button {
   margin-right: 8px;
+}
+
+.sider-version {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+  padding: 12px 0 8px;
+  letter-spacing: 0.5px;
+
+  &--collapsed {
+    font-size: 10px;
+  }
 }
 
 .tabs-view-container {

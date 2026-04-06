@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AAlert: typeof import('ant-design-vue/es')['Alert']
+    AAutoComplete: typeof import('ant-design-vue/es')['AutoComplete']
     AAvatar: typeof import('ant-design-vue/es')['Avatar']
     ABreadcrumb: typeof import('ant-design-vue/es')['Breadcrumb']
     ABreadcrumbItem: typeof import('ant-design-vue/es')['BreadcrumbItem']
@@ -41,6 +42,7 @@ declare module 'vue' {
     ASelect: typeof import('ant-design-vue/es')['Select']
     ASelectOption: typeof import('ant-design-vue/es')['SelectOption']
     ASpace: typeof import('ant-design-vue/es')['Space']
+    ASpin: typeof import('ant-design-vue/es')['Spin']
     ASubMenu: typeof import('ant-design-vue/es')['SubMenu']
     ASwitch: typeof import('ant-design-vue/es')['Switch']
     ATable: typeof import('ant-design-vue/es')['Table']
@@ -48,6 +50,7 @@ declare module 'vue' {
     ATabs: typeof import('ant-design-vue/es')['Tabs']
     ATag: typeof import('ant-design-vue/es')['Tag']
     ATextarea: typeof import('ant-design-vue/es')['Textarea']
+    ATooltip: typeof import('ant-design-vue/es')['Tooltip']
     AUploadDragger: typeof import('ant-design-vue/es')['UploadDragger']
     FileLibraryModal: typeof import('./src/components/FileLibraryModal.vue')['default']
     MissionConfigModal: typeof import('./src/components/MissionConfigModal.vue')['default']

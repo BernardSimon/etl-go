@@ -72,7 +72,7 @@ func inferExample(item params.Params) string {
 	case key == "keys_sample_rows":
 		return "100"
 	case key == "cron":
-		return "0 */5 * * * *"
+		return "*/5 * * * *"
 	case strings.Contains(key, "host"):
 		return "127.0.0.1"
 	case strings.Contains(key, "database"):

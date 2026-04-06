@@ -102,3 +102,7 @@ export const saveTaskTemplate = (data: {
 export const deleteTaskTemplate = (id: string) => {
   return request.delete<ApiResponse<any>>(`/task-templates/${id}`);
 };
+
+export const previewTask = (id: string) => {
+  return request.post<ApiResponse<{ columns: string[]; rows: Record<string, any>[] }>>(`/tasks/${id}/preview`);
+};

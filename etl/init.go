@@ -61,6 +61,7 @@ func RegisterComponents() error {
 	errs = append(errs, factory.RegisterSource(jsonSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(httpSource.SourceCreator))
 	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorSqlite))
+	errs = append(errs, factory.RegisterSource(sqlSource.SourceCreatorDoris))
 
 	// 注册数据输出
 	errs = append(errs, factory.RegisterSink(sqlSink.SinkCreatorMysql))

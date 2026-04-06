@@ -30,6 +30,11 @@ func (e *ServiceError) Error() string {
 	return e.Message
 }
 
+// IDUri 用于只含路径参数 :id 的接口（如删除、启动、停止等）
+type IDUri struct {
+	Id string `uri:"id"`
+}
+
 type Mission struct {
 	Spec string
 	Func func() error

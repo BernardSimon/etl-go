@@ -155,6 +155,10 @@ func CreateOutputFile(fileName string, exName string) (string, string, error) {
 	if strings.HasSuffix(fileName, exName) {
 		fileName = strings.TrimSuffix(fileName, exName)
 	}
+	// 确保输出目录存在
+	if err := os.MkdirAll("./file/output", os.ModePerm); err != nil {
+		return "", "", errors.New("failed to create output directory")
+	}
 	var file = model.File{
 		Model: model.Model{
 			ID: id,
@@ -181,8 +185,8 @@ func SaveOutputFile(recordID string, ids []string, isError bool) error {
 		if isError {
 			if err := DeleteFile(id); err != nil {
 				ers = append(ers, err)
-				continue
 			}
+			continue
 		}
 		var file model.File
 		if err := model.DB.Where("id = ?", id).First(&file).Error; err != nil {

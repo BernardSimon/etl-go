@@ -7,12 +7,8 @@ type UploadFileRequest struct {
 }
 
 type GetFileListRequest struct {
-	PageSize int    `json:"page_size" form:"page_size"`
-	PageNo   int    `json:"page_no" form:"page_no"`
-	Keyword  string `json:"keyword" form:"keyword"`
-	IDs      string `json:"ids" form:"ids"`
-}
-
-type DeleteFileRequest struct {
-	ID string `json:"id" uri:"id" binding:"required"`
+	PageSize int    `form:"page_size"`
+	PageNo   int    `form:"page_no"`
+	Keyword  string `form:"keyword"`
+	IDs      string `form:"ids"`
 }

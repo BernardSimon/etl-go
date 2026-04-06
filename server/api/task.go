@@ -12,30 +12,30 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-func AddTask(req *types.AddTaskRequest, _ string) (interface{}, error) {
-	if req.Cron != "manual" {
-		if _, err := cron.ParseStandard(req.Cron); err != nil {
+func AddTask(_ *struct{}, body *types.AddTaskRequest, _ string) (interface{}, error) {
+	if body.Cron != "manual" {
+		if _, err := cron.ParseStandard(body.Cron); err != nil {
 			return nil, errors.New("invalid cron expression")
 		}
 	}
 	Mission := model.Task{
-		Name:   req.Name,
-		Cron:   req.Cron,
+		Name:   body.Name,
+		Cron:   body.Cron,
 		Status: 0,
-		Data:   &req.ParStr,
+		Data:   &body.ParStr,
 	}
 	if err := model.DB.Create(&Mission).Error; err != nil {
 		return nil, errors.New("failed to create task")
 	}
 	return "success", nil
 }
-func DeleteTask(req *types.DeleteTaskRequest, lang string) (interface{}, error) {
+
+func DeleteTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var m model.Task
-	result := model.DB.Where("id = ?", req.Id).First(&m)
+	result := model.DB.Where("id = ?", uri.Id).First(&m)
 	if result.Error != nil {
 		return false, errors.New("task not found")
 	}
-
 	if m.Status == 1 {
 		return false, errors.New("cannot delete in task scheduling")
 	}
@@ -46,11 +46,11 @@ func DeleteTask(req *types.DeleteTaskRequest, lang string) (interface{}, error) 
 	return i18n.Translate(lang, "success"), nil
 }
 
-func GetTaskAll(req *types.GetTaskAllRequest, _ string) (interface{}, error) {
+func GetTaskAll(_ *struct{}, query *types.GetTaskAllRequest, _ string) (interface{}, error) {
 	var missionList []model.Task
 	var total int64
-	pageNo := req.PageNo
-	pageSize := req.PageSize
+	pageNo := query.PageNo
+	pageSize := query.PageSize
 	if pageNo <= 0 {
 		pageNo = 1
 	}
@@ -59,16 +59,16 @@ func GetTaskAll(req *types.GetTaskAllRequest, _ string) (interface{}, error) {
 	}
 
 	tx := model.DB.Model(&model.Task{})
-	if req.Search != "" {
-		tx = tx.Where("name LIKE ?", "%"+req.Search+"%")
+	if query.Search != "" {
+		tx = tx.Where("name LIKE ?", "%"+query.Search+"%")
 	}
-	if req.MissionName != "" {
-		tx = tx.Where("name LIKE ?", "%"+req.MissionName+"%")
+	if query.MissionName != "" {
+		tx = tx.Where("name LIKE ?", "%"+query.MissionName+"%")
 	}
-	if req.Status != nil {
-		tx = tx.Where("status = ?", *req.Status)
+	if query.Status != nil {
+		tx = tx.Where("status = ?", *query.Status)
 	}
-	switch req.TaskType {
+	switch query.TaskType {
 	case "manual":
 		tx = tx.Where("cron = ?", "manual")
 	case "scheduled":
@@ -90,28 +90,29 @@ func GetTaskAll(req *types.GetTaskAllRequest, _ string) (interface{}, error) {
 	}, nil
 }
 
-func GetTaskById(req *types.GetTaskByIdRequest, _ string) (interface{}, error) {
+func GetTaskById(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var m model.Task
-	model.DB.First(&m, req.Id)
+	model.DB.First(&m, uri.Id)
 	return m, nil
 }
-func UpdateTask(req *types.UpdateTaskRequest, lang string) (interface{}, error) {
-	if req.Cron != "manual" {
-		if _, err := cron.ParseStandard(req.Cron); err != nil {
+
+func UpdateTask(uri *types.IDUri, body *types.UpdateTaskBody, lang string) (interface{}, error) {
+	if body.Cron != "manual" {
+		if _, err := cron.ParseStandard(body.Cron); err != nil {
 			return nil, errors.New("invalid cron expression")
 		}
 	}
 	var m model.Task
-	model.DB.Where("id = ?", req.Id).First(&m)
+	model.DB.Where("id = ?", uri.Id).First(&m)
 	if m.ID == "" {
 		return nil, errors.New("task not found")
 	}
 	if m.Status == 1 {
 		return nil, errors.New("cannot edit in task scheduling")
 	}
-	m.Name = req.Name
-	m.Cron = req.Cron
-	m.Data = &req.ParStr
+	m.Name = body.Name
+	m.Cron = body.Cron
+	m.Data = &body.ParStr
 	m.Status = 0
 	if err := model.DB.Save(&m).Error; err != nil {
 		return nil, errors.New("failed to edit task")
@@ -119,10 +120,9 @@ func UpdateTask(req *types.UpdateTaskRequest, lang string) (interface{}, error) 
 	return i18n.Translate(lang, "success"), nil
 }
 
-func RunTask(req *types.RunTaskRequest, lang string) (interface{}, error) {
+func RunTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var m model.Task
 
-	// 开启一个数据库事务
 	tx := model.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -130,36 +130,29 @@ func RunTask(req *types.RunTaskRequest, lang string) (interface{}, error) {
 		}
 	}()
 
-	// 查询并锁定任务记录
-	if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", req.Id).First(&m).Error; err != nil {
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", uri.Id).First(&m).Error; err != nil {
 		tx.Rollback()
 		return nil, errors.New("task not found")
 	}
-	// 查询Corn
 	if m.Cron == "manual" {
 		return nil, errors.New("manual task cannot be scheduled")
 	}
-
-	// 检查任务状态
 	if m.Status == 1 {
 		tx.Rollback()
 		return nil, errors.New("task already scheduling")
 	}
 
-	// 更新任务状态
 	m.Status = 1
 	if err := tx.Save(&m).Error; err != nil {
 		tx.Rollback()
 		return nil, errors.New("failed to update task status")
 	}
 
-	// 调度任务
 	err := task.ScheduleMission(&m)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
-	// 提交事务
 	if err := tx.Commit().Error; err != nil {
 		return nil, errors.New("system error")
 	}
@@ -167,9 +160,9 @@ func RunTask(req *types.RunTaskRequest, lang string) (interface{}, error) {
 	return i18n.Translate(lang, "success"), nil
 }
 
-func StopTask(req *types.StopTaskRequest, lang string) (interface{}, error) {
+func StopTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var m model.Task
-	model.DB.Where("id = ?", req.Id).Find(&m)
+	model.DB.Where("id = ?", uri.Id).Find(&m)
 	defer model.DB.Save(&m)
 	if m.Status != 1 {
 		return nil, errors.New("unable to stop scheduling task has not started yet")
@@ -177,9 +170,10 @@ func StopTask(req *types.StopTaskRequest, lang string) (interface{}, error) {
 	task.CancelMission(&m)
 	return i18n.Translate(lang, "success"), nil
 }
-func RunTaskOnce(req *types.RunTaskOnceRequest, _ string) (interface{}, error) {
+
+func RunTaskOnce(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var m model.Task
-	model.DB.Where("id = ?", req.Id).Find(&m)
+	model.DB.Where("id = ?", uri.Id).Find(&m)
 	err := task.RunMissionManual(m.ID)
 	if err != nil {
 		return nil, err
@@ -187,12 +181,19 @@ func RunTaskOnce(req *types.RunTaskOnceRequest, _ string) (interface{}, error) {
 	return "task has started running, please check the results", nil
 }
 
-// Task 信息获取
+func PreviewTask(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
+	result, err := task.PreviewTask(uri.Id)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
 
-func GetTypeByComponent(_ *interface{}, _ string) (interface{}, error) {
+// ── 组件元数据 ────────────────────────────────────────────────────────────────
+
+func GetTypeByComponent(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	var response types.GetTypeByComponentResponse
 
-	// Query all datasources once to avoid N+1 queries
 	var allDataSources []model.DataSource
 	model.DB.Model(&model.DataSource{}).Select("name", "id", "type").Find(&allDataSources)
 	dsByType := make(map[string][]struct {
@@ -251,29 +252,31 @@ func GetTypeByComponent(_ *interface{}, _ string) (interface{}, error) {
 	return response, nil
 }
 
-func GetTaskRecordList(req *types.GetTaskRecordListRequest, _ string) (interface{}, error) {
+// ── 任务执行记录 ──────────────────────────────────────────────────────────────
+
+func GetTaskRecordList(_ *struct{}, query *types.GetTaskRecordListRequest, _ string) (interface{}, error) {
 	var missionRecordList []model.TaskRecord
 	var total int64
 	tx := model.DB.Model(&model.TaskRecord{}).Preload("Task")
-	pageNo := req.PageNo
-	pageSize := req.PageSize
+	pageNo := query.PageNo
+	pageSize := query.PageSize
 	if pageNo <= 0 {
 		pageNo = 1
 	}
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	if req.ID != "" {
-		tx = tx.Where("id = ?", req.ID)
+	if query.ID != "" {
+		tx = tx.Where("id = ?", query.ID)
 	}
-	if req.TaskID != "" {
-		tx = tx.Where("task_id = ?", req.TaskID)
+	if query.TaskID != "" {
+		tx = tx.Where("task_id = ?", query.TaskID)
 	}
-	if req.MissionName != "" {
-		tx = tx.Joins("Task").Where("Task.name LIKE ?", "%"+req.MissionName+"%")
+	if query.MissionName != "" {
+		tx = tx.Joins("Task").Where("Task.name LIKE ?", "%"+query.MissionName+"%")
 	}
-	if req.Status != -1 {
-		tx = tx.Where("status = ?", req.Status)
+	if query.Status != -1 {
+		tx = tx.Where("status = ?", query.Status)
 	}
 	tx.Count(&total).Offset((pageNo - 1) * pageSize).Limit(pageSize).Order("created_at desc").Find(&missionRecordList)
 	return map[string]interface{}{
@@ -284,13 +287,14 @@ func GetTaskRecordList(req *types.GetTaskRecordListRequest, _ string) (interface
 	}, nil
 }
 
-func GetTaskRecordsByTaskID(req *types.GetTaskRecordListRequest, lang string) (interface{}, error) {
-	return GetTaskRecordList(req, lang)
+func GetTaskRecordsByTaskID(uri *types.IDUri, query *types.GetTaskRecordListRequest, lang string) (interface{}, error) {
+	query.TaskID = uri.Id
+	return GetTaskRecordList(nil, query, lang)
 }
 
-func GetTaskLatestLog(req *types.GetTaskRecordListRequest, _ string) (interface{}, error) {
+func GetTaskLatestLog(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var taskRecord model.TaskRecord
-	if err := model.DB.Where("task_id = ?", req.TaskID).Order("created_at desc").First(&taskRecord).Error; err != nil {
+	if err := model.DB.Where("task_id = ?", uri.Id).Order("created_at desc").First(&taskRecord).Error; err != nil {
 		return nil, errors.New("task record not found")
 	}
 	return map[string]interface{}{
@@ -303,28 +307,28 @@ func GetTaskLatestLog(req *types.GetTaskRecordListRequest, _ string) (interface{
 	}, nil
 }
 
-func CancelTaskRecord(req *types.CancelTaskRecord, lang string) (interface{}, error) {
+func CancelTaskRecord(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var missionRecord model.TaskRecord
-	err := model.DB.Where("id = ?", req.ID).First(&missionRecord).Error
+	err := model.DB.Where("id = ?", uri.Id).First(&missionRecord).Error
 	if err != nil {
 		return nil, errors.New("task record not found")
 	}
 	if missionRecord.Status != 0 {
 		return nil, errors.New("task record already finish")
 	}
-	err = task.CancelMissionRecord(req.ID)
+	err = task.CancelMissionRecord(uri.Id)
 	if err != nil {
 		return nil, err
 	}
 	return i18n.Translate(lang, "the task is being forcibly terminated. Please refresh later to check the status"), nil
 }
 
-func GetFileListByTaskRecordID(req *types.CancelTaskRecord, _ string) (interface{}, error) {
+func GetFileListByTaskRecordID(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var fileList []model.TaskRecordFile
-	if req.ID == "" {
+	if uri.Id == "" {
 		return nil, errors.New("task record id is required")
 	}
-	err := model.DB.Model(&model.TaskRecordFile{}).Where("task_record_id = ?", req.ID).Preload("File").Find(&fileList).Error
+	err := model.DB.Model(&model.TaskRecordFile{}).Where("task_record_id = ?", uri.Id).Preload("File").Find(&fileList).Error
 	if err != nil {
 		return nil, errors.New("failed to get file list")
 	}
@@ -335,9 +339,9 @@ func GetFileListByTaskRecordID(req *types.CancelTaskRecord, _ string) (interface
 	return files, nil
 }
 
-func GetTaskRecordParams(req *types.CancelTaskRecord, _ string) (interface{}, error) {
+func GetTaskRecordParams(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var missionRecord model.TaskRecord
-	if err := model.DB.Preload("Task").Where("id = ?", req.ID).First(&missionRecord).Error; err != nil {
+	if err := model.DB.Preload("Task").Where("id = ?", uri.Id).First(&missionRecord).Error; err != nil {
 		return nil, errors.New("task record not found")
 	}
 	return map[string]interface{}{
@@ -348,9 +352,9 @@ func GetTaskRecordParams(req *types.CancelTaskRecord, _ string) (interface{}, er
 	}, nil
 }
 
-func GetTaskRecordLogs(req *types.CancelTaskRecord, _ string) (interface{}, error) {
+func GetTaskRecordLogs(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var missionRecord model.TaskRecord
-	if err := model.DB.Preload("Task").Where("id = ?", req.ID).First(&missionRecord).Error; err != nil {
+	if err := model.DB.Preload("Task").Where("id = ?", uri.Id).First(&missionRecord).Error; err != nil {
 		return nil, errors.New("task record not found")
 	}
 	return map[string]interface{}{

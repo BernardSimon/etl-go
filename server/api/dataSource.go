@@ -4,13 +4,15 @@ import (
 	"errors"
 
 	"github.com/BernardSimon/etl-go/etl/factory"
+	"github.com/BernardSimon/etl-go/etl/pipeline"
 	"github.com/BernardSimon/etl-go/server/model"
 	types "github.com/BernardSimon/etl-go/server/types"
 	fileUtil "github.com/BernardSimon/etl-go/server/utils/file"
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 )
 
-func GetDataSourceTypeList(_ *interface{}, _ string) (interface{}, error) {
+
+func GetDataSourceTypeList(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	list := factory.GetDatasourceTypeList()
 	var resp = make([]types.GetDataSourceTypeListResponse, 0)
 	for _, v := range list {
@@ -44,13 +46,13 @@ func resolveDatasourceConfig(config map[string]string) error {
 	return nil
 }
 
-func TestDataSource(req *types.TestDataSourceRequest, lang string) (interface{}, error) {
-	store, exists := factory.CreateDataSource(req.Type)
+func TestDataSource(_ *struct{}, body *types.TestDataSourceRequest, lang string) (interface{}, error) {
+	store, exists := factory.CreateDataSource(body.Type)
 	if exists != nil {
 		return nil, errors.New("invalid Datasource type")
 	}
 
-	config := keyValuesToMap(req.Data)
+	config := keyValuesToMap(body.Data)
 	if err := resolveDatasourceConfig(config); err != nil {
 		return nil, err
 	}
@@ -67,18 +69,18 @@ func TestDataSource(req *types.TestDataSourceRequest, lang string) (interface{},
 	return i18n.Translate(lang, "datasource connection test success"), nil
 }
 
-func NewDataSource(req *types.NewDataSourceRequest, lang string) (interface{}, error) {
-	store, exists := factory.CreateDataSource(req.Type)
+func NewDataSource(_ *struct{}, body *types.NewDataSourceRequest, lang string) (interface{}, error) {
+	store, exists := factory.CreateDataSource(body.Type)
 	if exists != nil {
 		return nil, errors.New("invalid Datasource type")
 	}
 	var existingRecord model.DataSource
-	err := model.DB.Where("name = ?", req.Name).Find(&existingRecord).Error
+	err := model.DB.Where("name = ?", body.Name).Find(&existingRecord).Error
 	if err != nil {
 		return nil, errors.New("illegal command")
 	}
-	if req.Edit {
-		if existingRecord.ID != req.ID && existingRecord.ID != "" {
+	if body.Edit {
+		if existingRecord.ID != body.ID && existingRecord.ID != "" {
 			return nil, errors.New("datasource name already exist")
 		}
 	} else {
@@ -88,7 +90,7 @@ func NewDataSource(req *types.NewDataSourceRequest, lang string) (interface{}, e
 	}
 	for _, v := range store.Params {
 		match := false
-		for _, v1 := range req.Data {
+		for _, v1 := range body.Data {
 			if v.Key == v1.Key {
 				if v.Required {
 					if v1.Value == "" {
@@ -104,21 +106,21 @@ func NewDataSource(req *types.NewDataSourceRequest, lang string) (interface{}, e
 		}
 	}
 	var existingRecord1 model.DataSource
-	if req.Edit {
-		if err := model.DB.Where("id = ?", req.ID).First(&existingRecord1).Error; err != nil {
+	if body.Edit {
+		if err := model.DB.Where("id = ?", body.ID).First(&existingRecord1).Error; err != nil {
 			return nil, errors.New("illegal command")
 		}
 	}
-	existingRecord1.Data = req.Data
-	existingRecord1.Name = req.Name
-	existingRecord1.Type = req.Type
+	existingRecord1.Data = body.Data
+	existingRecord1.Name = body.Name
+	existingRecord1.Type = body.Type
 	if err := model.DB.Save(&existingRecord1).Error; err != nil {
 		return nil, errors.New("failed to save datasource")
 	}
 	return i18n.Translate(lang, "success"), nil
 }
 
-func GetDataSourceList(_ *interface{}, _ string) (interface{}, error) {
+func GetDataSourceList(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	var dataSourceList []model.DataSource
 	err := model.DB.Select("id", "name", "type", "updated_at", "data").Order("created_at desc").Find(&dataSourceList).Error
 	if err != nil {
@@ -129,9 +131,67 @@ func GetDataSourceList(_ *interface{}, _ string) (interface{}, error) {
 	}, nil
 }
 
-func DeleteDataSource(req *types.DeleteDataSourceRequest, lang string) (interface{}, error) {
+// GetDataSourceSchema 初始化 datasource 并查询其表结构（仅支持 SQL 类型）
+func GetDataSourceSchema(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
+	var ds model.DataSource
+	if err := model.DB.Where("id = ?", uri.Id).First(&ds).Error; err != nil {
+		return nil, errors.New("datasource not found")
+	}
+
+	// 构建配置 map
+	config := make(map[string]string, len(ds.Data))
+	for _, kv := range ds.Data {
+		config[kv.Key] = kv.Value
+	}
+	// 解析 file_id → file_path（SQLite 需要）
+	if err := resolveDatasourceConfig(config); err != nil {
+		return nil, err
+	}
+	// 处理 HandleInternalConfig 中的 file_id 逻辑（与 pipeline 保持一致）
+	if _, err := pipeline.HandleInternalConfig(&config); err != nil {
+		return nil, err
+	}
+
+	// 创建并初始化 datasource 实例
+	store, err := factory.CreateDataSource(ds.Type)
+	if err != nil {
+		return nil, errors.New("unsupported datasource type")
+	}
+	if err := store.Handle.Init(config); err != nil {
+		return nil, errors.New("failed to connect to datasource")
+	}
+	defer store.Handle.Close()
+
+	// 直接调用 ListTables，不支持 schema 的实现返回空切片
+	tables, err := store.Handle.ListTables()
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为响应类型
+	resp := types.GetDataSourceSchemaResponse{
+		Tables: make([]types.DataSourceTable, 0, len(tables)),
+	}
+	for _, t := range tables {
+		cols := make([]types.DataSourceColumn, 0, len(t.Columns))
+		for _, c := range t.Columns {
+			cols = append(cols, types.DataSourceColumn{
+				Name:     c.Name,
+				Type:     c.Type,
+				Nullable: c.Nullable,
+			})
+		}
+		resp.Tables = append(resp.Tables, types.DataSourceTable{
+			Name:    t.Name,
+			Columns: cols,
+		})
+	}
+	return resp, nil
+}
+
+func DeleteDataSource(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var dataSourceRecord model.DataSource
-	model.DB.Where("id = ?", req.Id).First(&dataSourceRecord)
+	model.DB.Where("id = ?", uri.Id).First(&dataSourceRecord)
 	if dataSourceRecord.ID == "" {
 		return nil, errors.New("datasource handle not found")
 	}

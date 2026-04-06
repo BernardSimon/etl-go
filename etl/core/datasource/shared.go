@@ -74,23 +74,22 @@ func (l *sharedLease) Close() error {
 }
 
 func (l *sharedLease) DB() *sql.DB {
-	if l.shared == nil {
+	if l.shared == nil || l.shared.base == nil {
 		return nil
 	}
-	provider, ok := l.shared.base.(SQLDBProvider)
-	if !ok {
-		return nil
-	}
-	return provider.DB()
+	return l.shared.base.DB()
 }
 
 func (l *sharedLease) ConfigMap() map[string]string {
-	if l.shared == nil {
+	if l.shared == nil || l.shared.base == nil {
 		return nil
 	}
-	provider, ok := l.shared.base.(ConfigMapProvider)
-	if !ok {
-		return nil
+	return l.shared.base.ConfigMap()
+}
+
+func (l *sharedLease) ListTables() ([]TableInfo, error) {
+	if l.shared == nil || l.shared.base == nil {
+		return []TableInfo{}, nil
 	}
-	return provider.ConfigMap()
+	return l.shared.base.ListTables()
 }

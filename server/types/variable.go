@@ -18,14 +18,6 @@ type NewVariableRequest struct {
 	Edit         bool      `json:"edit"`
 }
 
-type DeleteVariableRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
-
-type TestVariableRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
-
 type KeyValue struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`

@@ -70,46 +70,42 @@ func (ct *TaskData) Scan(value interface{}) error {
 	}
 }
 
+// ── 任务 ──────────────────────────────────────────────────────────────────────
+
 type AddTaskRequest struct {
 	Name   string   `json:"mission_name" binding:"required"`
 	ParStr TaskData `json:"params" binding:"required"`
 	Cron   string   `json:"cron" binding:"required"`
 }
 
-type DeleteTaskRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
-
-type GetTaskByIdRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
-
 type GetTaskAllRequest struct {
-	PageNo      int    `json:"page_no" form:"page_no"`
-	PageSize    int    `json:"page_size" form:"page_size"`
-	MissionName string `json:"mission_name" form:"mission_name"`
-	Status      *int   `json:"status" form:"status"`
-	Search      string `json:"search" form:"search"`
-	TaskType    string `json:"tasktypes" form:"tasktypes"`
+	PageNo      int    `form:"page_no"`
+	PageSize    int    `form:"page_size"`
+	MissionName string `form:"mission_name"`
+	Status      *int   `form:"status"`
+	Search      string `form:"search"`
+	TaskType    string `form:"tasktypes"`
 }
 
-type UpdateTaskRequest struct {
-	Id     string   `json:"id" uri:"id" binding:"required"`
+// UpdateTaskBody 是 PUT /tasks/:id 的请求体；路径中的 id 通过 IDUri 传入
+type UpdateTaskBody struct {
 	Name   string   `json:"mission_name" binding:"required"`
 	ParStr TaskData `json:"params" binding:"required"`
 	Cron   string   `json:"cron" binding:"required"`
 }
 
-type RunTaskRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
+// ── 任务执行记录 ────────────────────────────────────────────────────────────────
+
+type GetTaskRecordListRequest struct {
+	PageNo      int    `form:"page_no"`
+	PageSize    int    `form:"page_size"`
+	MissionName string `form:"mission_name"`
+	Status      int    `form:"status"`
+	ID          string `form:"id"`
+	TaskID      string `form:"task_id"`
 }
 
-type StopTaskRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
-type RunTaskOnceRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
+// ── 组件元数据 ─────────────────────────────────────────────────────────────────
 
 type GetTypeByComponentResponse struct {
 	Executor  []TypeDataSource   `json:"executor"`
@@ -130,27 +126,23 @@ type TypeNoDataSource struct {
 	Params []params.Params `json:"params"`
 }
 
-type GetTaskRecordListRequest struct {
-	PageNo      int    `json:"page_no" form:"page_no"`
-	PageSize    int    `json:"page_size" form:"page_size"`
-	MissionName string `json:"mission_name" form:"mission_name"`
-	Status      int    `json:"status" form:"status"`
-	ID          string `json:"id" form:"id"`
-	TaskID      string `json:"task_id" form:"task_id" uri:"id"`
+// ── 预览 ──────────────────────────────────────────────────────────────────────
+
+// PreviewResponse 是 POST /tasks/:id/preview 的响应体
+type PreviewResponse struct {
+	// Columns 是输出列名（按字母序稳定排列）
+	Columns []string                 `json:"columns"`
+	// Rows 是最多 20 行的预览数据，每行为 map[列名]值
+	Rows    []map[string]interface{} `json:"rows"`
 }
 
-type CancelTaskRecord struct {
-	ID string `json:"id" uri:"id"`
-}
+// ── 任务模板 ──────────────────────────────────────────────────────────────────
 
+// SaveTaskTemplateRequest：POST /task-templates，ID 为可选 body 字段（编辑时传入）
 type SaveTaskTemplateRequest struct {
-	ID       string   `json:"id,omitempty" uri:"id"`
+	ID       string   `json:"id,omitempty"`
 	Name     string   `json:"name" binding:"required"`
 	ParStr   TaskData `json:"params" binding:"required"`
 	Cron     string   `json:"cron" binding:"required"`
 	TaskType string   `json:"tasktypes" binding:"required"`
-}
-
-type DeleteTaskTemplateRequest struct {
-	ID string `json:"id" uri:"id" binding:"required"`
 }

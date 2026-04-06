@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetVariableList(_ *interface{}, _ string) (interface{}, error) {
+func GetVariableList(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	var variableList []model.Variable
 	model.DB.Order("created_at desc").Preload("DataSource", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, name")
@@ -21,42 +21,34 @@ func GetVariableList(_ *interface{}, _ string) (interface{}, error) {
 	}, nil
 }
 
-func NewVariable(req *types.NewVariableRequest, lang string) (interface{}, error) {
-	// 检查变量名是否已存在（排除当前编辑的变量）
+func NewVariable(_ *struct{}, body *types.NewVariableRequest, lang string) (interface{}, error) {
 	var existingVariable model.Variable
-	query := model.DB.Where("name = ?", req.Name)
-
-	// 如果是编辑模式，排除当前变量ID
-	if req.Edit {
-		query = query.Where("id != ?", req.ID)
+	query := model.DB.Where("name = ?", body.Name)
+	if body.Edit {
+		query = query.Where("id != ?", body.ID)
 	}
-
 	if err := query.Limit(1).Find(&existingVariable).Error; err != nil {
 		return nil, errors.New("system error")
 	}
-
 	if existingVariable.ID != "" {
 		return nil, errors.New("variable name already exists")
 	}
 
-	// 处理变量创建或更新
 	var variable model.Variable
-	if req.Edit {
-		// 编辑模式：检查变量是否存在
-		if err := model.DB.Where("id = ?", req.ID).First(&variable).Error; err != nil {
+	if body.Edit {
+		if err := model.DB.Where("id = ?", body.ID).First(&variable).Error; err != nil {
 			return nil, errors.New("variable not exists")
 		}
 	}
 
-	store, err := factory.CreateVariable(req.Type)
+	store, err := factory.CreateVariable(body.Type)
 	if err != nil {
 		return nil, errors.New("invalid variable type")
 	}
 
-	// 验证参数完整性
 	for _, p := range store.Params {
 		matched := false
-		for _, param := range req.Value {
+		for _, param := range body.Value {
 			if param.Key == p.Key {
 				if p.Required && param.Value == "" {
 					return nil, errors.New("variable value is not complete")
@@ -70,43 +62,37 @@ func NewVariable(req *types.NewVariableRequest, lang string) (interface{}, error
 		}
 	}
 
-	// 验证数据源
 	if store.Datasource != nil {
-		if req.DataSourceID == nil {
+		if body.DataSourceID == nil {
 			return nil, errors.New("variable type need datasource")
 		}
-
 		var dataSourceInstance model.DataSource
-		if err := model.DB.Where("id = ?", req.DataSourceID).First(&dataSourceInstance).Error; err != nil {
+		if err := model.DB.Where("id = ?", body.DataSourceID).First(&dataSourceInstance).Error; err != nil {
 			return nil, errors.New("datasource does not exist")
 		}
-
 		dsType := *store.Datasource
 		if dataSourceInstance.Type != dsType {
 			return nil, errors.New("datasource type is not match")
 		}
-	} else if req.DataSourceID != nil {
+	} else if body.DataSourceID != nil {
 		return nil, errors.New("variable type do not support datasource")
 	}
 
-	// 更新变量属性
-	variable.Name = req.Name
-	variable.Type = req.Type
-	variable.Description = req.Description
-	variable.Value = &req.Value
-	variable.DataSourceID = req.DataSourceID
+	variable.Name = body.Name
+	variable.Type = body.Type
+	variable.Description = body.Description
+	variable.Value = &body.Value
+	variable.DataSourceID = body.DataSourceID
 
-	// 保存到数据库
 	if err := model.DB.Save(&variable).Error; err != nil {
 		return nil, errors.New("failed to save variable")
 	}
-
 	return i18n.Translate(lang, "success"), nil
 }
 
-func DeleteVariable(req *types.DeleteVariableRequest, lang string) (interface{}, error) {
+func DeleteVariable(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var variable model.Variable
-	model.DB.Where("id = ?", req.Id).First(&variable)
+	model.DB.Where("id = ?", uri.Id).First(&variable)
 	if variable.ID == "" {
 		return nil, errors.New("variable not exists")
 	}
@@ -116,19 +102,16 @@ func DeleteVariable(req *types.DeleteVariableRequest, lang string) (interface{},
 	return i18n.Translate(lang, "success"), nil
 }
 
-func TestVariable(req *types.TestVariableRequest, _ string) (interface{}, error) {
+func TestVariable(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var variable model.Variable
-	err := model.DB.Where("id = ?", req.Id).Limit(1).Preload("DataSource").First(&variable).Error
+	err := model.DB.Where("id = ?", uri.Id).Limit(1).Preload("DataSource").First(&variable).Error
 	if err != nil {
 		return nil, errors.New("variable not exists")
 	}
 	return task.GetValueByName(variable.Name)
 }
 
-//	func GetVariableTypeList(_ *interface{}, _ string) (interface{}, error) {
-//		return factory.GetVariableTypeList(), nil
-//	}
-func GetVariableTypeList(_ *interface{}, _ string) (interface{}, error) {
+func GetVariableTypeList(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	list := factory.GetVariableTypeList()
 	var resp = make([]types.GetVariableTypeListResponse, 0)
 	for _, v := range list {

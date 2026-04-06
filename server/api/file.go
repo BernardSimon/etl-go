@@ -10,23 +10,23 @@ import (
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 )
 
-func GetFileList(req *types.GetFileListRequest, _ string) (interface{}, error) {
+func GetFileList(_ *struct{}, query *types.GetFileListRequest, _ string) (interface{}, error) {
 	var fileList = make([]model.File, 0)
 	var total int64
-	pageSize := req.PageSize
+	pageSize := query.PageSize
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	pageNo := req.PageNo
+	pageNo := query.PageNo
 	if pageNo <= 0 {
 		pageNo = 1
 	}
 
-	query := model.DB.Model(&model.File{})
-	if keyword := strings.TrimSpace(req.Keyword); keyword != "" {
-		query = query.Where("name LIKE ?", "%"+keyword+"%")
+	q := model.DB.Model(&model.File{})
+	if keyword := strings.TrimSpace(query.Keyword); keyword != "" {
+		q = q.Where("name LIKE ?", "%"+keyword+"%")
 	}
-	if ids := strings.TrimSpace(req.IDs); ids != "" {
+	if ids := strings.TrimSpace(query.IDs); ids != "" {
 		parts := strings.Split(ids, ",")
 		cleaned := make([]string, 0, len(parts))
 		for _, id := range parts {
@@ -36,11 +36,11 @@ func GetFileList(req *types.GetFileListRequest, _ string) (interface{}, error) {
 			}
 		}
 		if len(cleaned) > 0 {
-			query = query.Where("id IN ?", cleaned)
+			q = q.Where("id IN ?", cleaned)
 		}
 	}
 
-	if err := query.Count(&total).Order("created_at desc").Limit(pageSize).Offset((pageNo - 1) * pageSize).Find(&fileList).Error; err != nil {
+	if err := q.Count(&total).Order("created_at desc").Limit(pageSize).Offset((pageNo - 1) * pageSize).Find(&fileList).Error; err != nil {
 		return nil, errors.New("failed to get file list")
 	}
 	return map[string]interface{}{
@@ -51,16 +51,16 @@ func GetFileList(req *types.GetFileListRequest, _ string) (interface{}, error) {
 	}, nil
 }
 
-func UploadFile(req *types.UploadFileRequest, _ string) (interface{}, error) {
-	f, err := file.SaveFileInput(&req.File)
+func UploadFile(_ *struct{}, body *types.UploadFileRequest, _ string) (interface{}, error) {
+	f, err := file.SaveFileInput(&body.File)
 	if err != nil {
 		return nil, errors.New("failed to upload file")
 	}
 	return f, nil
 }
 
-func DeleteFile(req *types.DeleteFileRequest, lang string) (interface{}, error) {
-	err := file.DeleteFile(req.ID)
+func DeleteFile(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
+	err := file.DeleteFile(uri.Id)
 	if err != nil {
 		return nil, errors.New("failed to delete file")
 	}

@@ -35,7 +35,7 @@ func getLoginLimiter(ip string) *rate.Limiter {
 	return limiter
 }
 
-func Login(req *types.LoginRequest, _ string) (interface{}, error) {
+func Login(_ *struct{}, req *types.LoginRequest, _ string) (interface{}, error) {
 	if req.Username == config.Config.Username && req.Password == config.Config.Password {
 		token, err := generateToken(req.Username)
 		if err != nil {
@@ -54,7 +54,7 @@ func Login(req *types.LoginRequest, _ string) (interface{}, error) {
 	return nil, errors.New("invalid username or password")
 }
 
-func RefreshToken(req *types.RefreshTokenRequest, _ string) (interface{}, error) {
+func RefreshToken(_ *struct{}, req *types.RefreshTokenRequest, _ string) (interface{}, error) {
 	userId, err := DecodeRefreshToken(req.RefreshToken)
 	if err != nil {
 		return nil, errors.New("invalid or expired refresh token")
@@ -74,14 +74,14 @@ func RefreshToken(req *types.RefreshTokenRequest, _ string) (interface{}, error)
 }
 
 // LoginWithRateLimit wraps Login with per-IP rate limiting.
-func LoginWithRateLimit(c *gin.Context) func(*types.LoginRequest, string) (interface{}, error) {
+func LoginWithRateLimit(c *gin.Context) func(*struct{}, *types.LoginRequest, string) (interface{}, error) {
 	ip := GetRealIP(c)
 	limiter := getLoginLimiter(ip)
-	return func(req *types.LoginRequest, lang string) (interface{}, error) {
+	return func(_ *struct{}, req *types.LoginRequest, lang string) (interface{}, error) {
 		if !limiter.Allow() {
 			return nil, errors.New("too many login attempts, please try again later")
 		}
-		return Login(req, lang)
+		return Login(nil, req, lang)
 	}
 }
 

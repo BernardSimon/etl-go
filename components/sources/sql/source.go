@@ -82,6 +82,28 @@ func SourceCreatorSqlite() (string, source.Source, *string, []params.Params) {
 	return sqliteName, &Source{}, &sqliteDatasourceName, paramList
 }
 
+var dorisName = "doris"
+var dorisDatasourceName = "doris"
+
+func SetCustomNameDoris(customName string, customDatasourceName string) {
+	dorisName = customName
+	dorisDatasourceName = customDatasourceName
+}
+
+// SourceCreatorDoris 返回 Doris SQL Source 的注册信息。
+// 所有参数（host、mysql_port、user、password、database、query）均通过 MySQL 协议传输。
+func SourceCreatorDoris() (string, source.Source, *string, []params.Params) {
+	paramList := []params.Params{
+		{
+			Key:          "query",
+			DefaultValue: "",
+			Required:     true,
+			Description:  "SQL query to execute (all params use MySQL protocol)",
+		},
+	}
+	return dorisName, &Source{}, &dorisDatasourceName, paramList
+}
+
 func (s *Source) Open(ctx context.Context, config map[string]string, dataSource datasource.Datasource) error {
 	if err := ctx.Err(); err != nil {
 		return err

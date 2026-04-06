@@ -72,3 +72,7 @@ export const deleteDataSource = (data: { id: string }) => {
 export const getDataSourceList = () => {
   return request.get<ApiResponse<{ list: any[] }>>("/data-sources");
 };
+
+export const getDataSourceSchema = (id: string) => {
+  return request.get<ApiResponse<{ tables: { name: string; columns: { name: string; type: string; nullable: boolean }[] }[] }>>(`/data-sources/${id}/schema`);
+};

@@ -15,14 +15,24 @@ type TestDataSourceRequest struct {
 	Data KeyValues `json:"data" binding:"required"`
 }
 
-type DeleteDataSourceRequest struct {
-	Id string `json:"id" uri:"id" binding:"required"`
-}
-
-type GetDatasourceParamsByTypeRequest struct {
-	Type string `json:"type" binding:"required"`
-}
 type GetDataSourceTypeListResponse struct {
 	Type   string           `json:"type"`
 	Params []params2.Params `json:"params"`
+}
+
+// ── Schema 发现 ───────────────────────────────────────────────────────────────
+
+type GetDataSourceSchemaResponse struct {
+	Tables []DataSourceTable `json:"tables"`
+}
+
+type DataSourceTable struct {
+	Name    string                `json:"name"`
+	Columns []DataSourceColumn    `json:"columns"`
+}
+
+type DataSourceColumn struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
 }
