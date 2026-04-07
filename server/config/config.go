@@ -29,7 +29,9 @@ type LogConfig struct {
 }
 
 type DatabaseConfig struct {
-	Path            string `yaml:"path"`            // SQLite file path, default: ./data.db
+	Driver          string `yaml:"driver"`          // sqlite (default) | mysql | postgres
+	Path            string `yaml:"path"`            // SQLite file path, default: ./data.db (only used when driver=sqlite)
+	DSN             string `yaml:"dsn"`             // MySQL/PostgreSQL DSN, e.g. "user:pass@tcp(host:3306)/db?parseTime=True"
 	MaxOpenConns    int    `yaml:"maxOpenConns"`    // default: 10
 	MaxIdleConns    int    `yaml:"maxIdleConns"`    // default: 5
 	ConnMaxLifetime int    `yaml:"connMaxLifetime"` // seconds, default: 300
@@ -86,6 +88,7 @@ func defaultConfig() configModel {
 			Compress:   true,
 		},
 		Database: DatabaseConfig{
+			Driver:          "sqlite",
 			Path:            "./data.db",
 			MaxOpenConns:    10,
 			MaxIdleConns:    5,
@@ -217,7 +220,10 @@ func applyRuntimeDefaults() {
 	if Config.Log.MaxAge <= 0 {
 		Config.Log.MaxAge = 7
 	}
-	if Config.Database.Path == "" {
+	if Config.Database.Driver == "" {
+		Config.Database.Driver = "sqlite"
+	}
+	if Config.Database.Driver == "sqlite" && Config.Database.Path == "" {
 		Config.Database.Path = "./data.db"
 	}
 	if Config.Database.MaxOpenConns <= 0 {
@@ -280,7 +286,12 @@ func EnsureConfig() (bool, error) {
 }
 
 func EnsureRuntimePaths() error {
-	for _, path := range []string{Config.Log.Filename, Config.Database.Path} {
+	paths := []string{Config.Log.Filename}
+	// 只有 sqlite 需要确保数据库文件所在目录存在
+	if Config.Database.Driver == "" || Config.Database.Driver == "sqlite" {
+		paths = append(paths, Config.Database.Path)
+	}
+	for _, path := range paths {
 		if path == "" {
 			continue
 		}

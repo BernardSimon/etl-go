@@ -20,6 +20,8 @@ import (
 
 	"github.com/BernardSimon/etl-go/server/config"
 	"github.com/glebarez/sqlite"
+	mysqlDriver "gorm.io/driver/mysql"
+	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm/schema"
 
 	"go.uber.org/zap"
@@ -33,26 +35,24 @@ var DB *gorm.DB
 
 func MigrateDb() error {
 	dbCfg := config.Config.Database
-	dbPath := dbCfg.Path
-	if dbPath == "" {
-		dbPath = "./data.db"
-	}
 
-	// 迁移前备份
-	if _, err := os.Stat(dbPath); err == nil {
-		backupPath := dbPath + ".bak." + time.Now().Format("20060102150405")
-		if err := copyFile(dbPath, backupPath); err != nil {
-			zap.L().Warn("Failed to backup database before migration", zap.Error(err))
-		} else {
-			zap.L().Info("Database backup created", zap.String("path", backupPath))
+	// 仅 sqlite 需要迁移前备份文件
+	if dbCfg.Driver == "" || dbCfg.Driver == "sqlite" {
+		dbPath := dbCfg.Path
+		if dbPath == "" {
+			dbPath = "./data.db"
+		}
+		if _, err := os.Stat(dbPath); err == nil {
+			backupPath := dbPath + ".bak." + time.Now().Format("20060102150405")
+			if err := copyFile(dbPath, backupPath); err != nil {
+				zap.L().Warn("Failed to backup database before migration", zap.Error(err))
+			} else {
+				zap.L().Info("Database backup created", zap.String("path", backupPath))
+			}
 		}
 	}
 
-	err := DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &TaskTemplate{}, &File{}, &TaskRecordFile{})
-	if err != nil {
-		return err
-	}
-	return nil
+	return DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &TaskTemplate{}, &File{}, &TaskRecordFile{})
 }
 
 func copyFile(src, dst string) error {
@@ -72,10 +72,6 @@ func copyFile(src, dst string) error {
 
 func InitDb() error {
 	dbCfg := config.Config.Database
-	dbPath := dbCfg.Path
-	if dbPath == "" {
-		dbPath = "./data.db"
-	}
 
 	maxOpenConns := dbCfg.MaxOpenConns
 	if maxOpenConns <= 0 {
@@ -90,10 +86,35 @@ func InitDb() error {
 		connMaxLifetime = 300
 	}
 
-	dB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	gormCfg := &gorm.Config{
 		Logger:      &sqlLogger{},
 		PrepareStmt: true,
-	})
+	}
+
+	var dB *gorm.DB
+	var err error
+
+	switch dbCfg.Driver {
+	case "", "sqlite":
+		dbPath := dbCfg.Path
+		if dbPath == "" {
+			dbPath = "./data.db"
+		}
+		dB, err = gorm.Open(sqlite.Open(dbPath), gormCfg)
+	case "mysql":
+		if dbCfg.DSN == "" {
+			return fmt.Errorf("database.dsn is required for mysql driver")
+		}
+		dB, err = gorm.Open(mysqlDriver.Open(dbCfg.DSN), gormCfg)
+	case "postgres":
+		if dbCfg.DSN == "" {
+			return fmt.Errorf("database.dsn is required for postgres driver")
+		}
+		dB, err = gorm.Open(postgresDriver.Open(dbCfg.DSN), gormCfg)
+	default:
+		return fmt.Errorf("unsupported database driver: %q (supported: sqlite, mysql, postgres)", dbCfg.Driver)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
