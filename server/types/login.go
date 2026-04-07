@@ -16,6 +16,16 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type LoginChallengeResponse struct {
+	RequiresTwoFactor bool   `json:"requires_2fa"`
+	PreAuthToken      string `json:"pre_auth_token"`
+}
+
+type VerifyTwoFactorRequest struct {
+	PreAuthToken string `json:"pre_auth_token" binding:"required"`
+	Code         string `json:"code" binding:"required"`
+}
+
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }

@@ -142,6 +142,29 @@ ETL-Go 不把文件上传做成孤立功能，而是把文件当成平台里的�
 - 任务级 datasource 共享租约，避免多个组件共享同一数据源时提前关闭底层连接
 - 更稳妥的 JSON / CSV / SQL 输出顺序与资源释放行为
 
+### 7. 两步验证（TOTP）
+
+支持基于时间的一次性密码（TOTP）二步验证，与 Google Authenticator、Authy 等 App 兼容。
+
+- 在 `config.yaml` 中将 `totpEnabled` 设为 `true` 即可启用，`false` 时完全不影响登录流程
+- 首次启动自动生成随机 TOTP Secret，也可自行填写已有密钥
+- 启用后，登录时先验证账号密码，通过后前端自动进入验证码输入步骤，验证通过才下发 JWT
+- 验证码输入步骤有独立的 IP 限流保护，防止暴力破解
+
+**配置方式：**
+
+```yaml
+totpEnabled: true
+totpSecret: "YOUR_BASE32_SECRET"  # 将此值录入 Google Authenticator / Authy
+```
+
+**API 流程：**
+
+```text
+POST /api/v1/login → { requires_2fa: true, pre_auth_token: "..." }
+POST /api/v1/verify-2fa { pre_auth_token, code } → { token, refresh_token }
+```
+
 ## 项目结构
 
 ```text
@@ -302,6 +325,9 @@ webUrl: 0.0.0.0:8081
 corsOrigins:
   - http://localhost:8081
   - http://localhost:5173
+
+totpEnabled: false
+totpSecret: "YOUR_BASE32_SECRET"
 ```
 
 ### 关键配置项
@@ -322,6 +348,10 @@ corsOrigins:
   - API 签名鉴权密钥；为空时表示不启用签名鉴权
 - `corsOrigins`
   - 允许跨域访问的前端地址
+- `totpEnabled`
+  - 是否启用 TOTP 两步验证；默认 `false`
+- `totpSecret`
+  - Base32 编码的 TOTP 密钥，录入 Google Authenticator / Authy 使用；首次启动自动随机生成
 
 ### 环境变量覆盖
 
@@ -352,13 +382,29 @@ corsOrigins:
 - 文件管理
 - 组件元数据查询
 
-示例登录请求：
+示例登录请求（未启用 2FA）：
 
 ```bash
 curl 'http://localhost:8080/api/v1/login' \
   -H 'Accept-Language: zh' \
   -H 'Content-Type: application/json' \
   --data-raw '{"username":"admin","password":"password123"}'
+```
+
+启用 2FA 后的登录流程：
+
+```bash
+# 第一步：账号密码登录，返回 pre_auth_token
+curl 'http://localhost:8080/api/v1/login' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"username":"admin","password":"password123"}'
+# → {"code":0,"data":{"requires_2fa":true,"pre_auth_token":"<token>"}}
+
+# 第二步：提交验证码，返回正式 JWT
+curl 'http://localhost:8080/api/v1/verify-2fa' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"pre_auth_token":"<token>","code":"123456"}'
+# → {"code":0,"data":{"token":"<jwt>","refresh_token":"<refresh>"}}
 ```
 
 ### API 签名鉴权
@@ -1012,6 +1058,29 @@ The current engine already includes:
 - Shared datasource leases at the task level to avoid closing underlying connections too early
 - More reliable JSON / CSV / SQL output ordering and resource cleanup
 
+### 7. Two-Factor Authentication (TOTP)
+
+Optional TOTP-based two-factor authentication compatible with Google Authenticator, Authy, and other standard authenticator apps.
+
+- Set `totpEnabled: true` in `config.yaml` to enable; when `false`, the login flow is unchanged
+- A random TOTP secret is generated automatically on first startup, or you can supply your own
+- When enabled, the login flow first validates the username and password, then prompts the user for a 6-digit code before issuing a JWT
+- The code verification step has its own per-IP rate limiting to prevent brute-force attacks
+
+**Configuration:**
+
+```yaml
+totpEnabled: true
+totpSecret: "YOUR_BASE32_SECRET"  # Scan or enter this value in Google Authenticator / Authy
+```
+
+**API flow:**
+
+```text
+POST /api/v1/login → { requires_2fa: true, pre_auth_token: "..." }
+POST /api/v1/verify-2fa { pre_auth_token, code } → { token, refresh_token }
+```
+
 ## Project Structure
 
 ```text
@@ -1171,6 +1240,9 @@ webUrl: 0.0.0.0:8081
 corsOrigins:
   - http://localhost:8081
   - http://localhost:5173
+
+totpEnabled: false
+totpSecret: "YOUR_BASE32_SECRET"
 ```
 
 ### Key Configuration Items
@@ -1189,6 +1261,10 @@ corsOrigins:
   - Listening address for the built-in Web service
 - `corsOrigins`
   - Frontend origins allowed for cross-origin requests
+- `totpEnabled`
+  - Whether to enable TOTP two-factor authentication; defaults to `false`
+- `totpSecret`
+  - Base32-encoded TOTP secret to register in Google Authenticator / Authy; generated automatically on first startup
 
 ### Environment Variable Overrides
 
@@ -1218,13 +1294,28 @@ Main capabilities include:
 - File management
 - Component metadata queries
 
-Example login request:
+Example login request (2FA disabled):
 
 ```bash
 curl 'http://localhost:8080/api/v1/login' \
-  -H 'Accept-Language: zh' \
   -H 'Content-Type: application/json' \
   --data-raw '{"username":"admin","password":"password123"}'
+```
+
+When 2FA is enabled, login is a two-step flow:
+
+```bash
+# Step 1: submit credentials, receive a pre-auth token
+curl 'http://localhost:8080/api/v1/login' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"username":"admin","password":"password123"}'
+# → {"code":0,"data":{"requires_2fa":true,"pre_auth_token":"<token>"}}
+
+# Step 2: submit the authenticator code to receive the final JWT
+curl 'http://localhost:8080/api/v1/verify-2fa' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"pre_auth_token":"<token>","code":"123456"}'
+# → {"code":0,"data":{"token":"<jwt>","refresh_token":"<refresh>"}}
 ```
 
 ## Web Admin Console

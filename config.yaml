@@ -25,3 +25,5 @@ webUrl: 0.0.0.0:8081
 corsOrigins:
     - http://localhost:8081
     - http://localhost:5173
+totpEnabled: false
+totpSecret: ""

@@ -31,6 +31,9 @@ func Register(engine *gin.Engine) {
 	v1.POST("/login", func(c *gin.Context) {
 		AdminAPI(api.LoginWithRateLimit(c), true)(c)
 	})
+	v1.POST("/verify-2fa", func(c *gin.Context) {
+		AdminAPI(api.VerifyTwoFactorWithRateLimit(c), true)(c)
+	})
 	v1.POST("/refresh-token", AdminAPI(api.RefreshToken))
 	v1.Use(api.AuthMiddleware)
 

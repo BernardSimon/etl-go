@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rand"
+	"encoding/base32"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -54,6 +55,8 @@ type configModel struct {
 	RunWeb      bool           `yaml:"runWeb"`
 	WebUrl      string         `yaml:"webUrl"`
 	CorsOrigins []string       `yaml:"corsOrigins"` // Allowed CORS origins, e.g. ["http://localhost:8081"]
+	TotpEnabled bool           `yaml:"totpEnabled"` // Enable TOTP two-factor authentication
+	TotpSecret  string         `yaml:"totpSecret"`  // Base32-encoded TOTP secret (configure in authenticator app)
 }
 
 func init() {
@@ -99,6 +102,8 @@ func defaultConfig() configModel {
 			"http://localhost:8081",
 			"http://localhost:5173",
 		},
+		TotpEnabled: false,
+		TotpSecret:  mustRandomTotpSecret(),
 	}
 }
 
@@ -108,6 +113,15 @@ func mustRandomHex(n int) string {
 		panic(fmt.Errorf("failed to generate random bytes: %w", err))
 	}
 	return hex.EncodeToString(buf)
+}
+
+// mustRandomTotpSecret generates a random base32-encoded TOTP secret (20 bytes / 160 bits).
+func mustRandomTotpSecret() string {
+	buf := make([]byte, 20)
+	if _, err := rand.Read(buf); err != nil {
+		panic(fmt.Errorf("failed to generate random TOTP secret: %w", err))
+	}
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf)
 }
 
 func configPath() string {

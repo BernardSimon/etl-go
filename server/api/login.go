@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/time/rate"
 )
 
@@ -37,6 +38,16 @@ func getLoginLimiter(ip string) *rate.Limiter {
 
 func Login(_ *struct{}, req *types.LoginRequest, _ string) (interface{}, error) {
 	if req.Username == config.Config.Username && req.Password == config.Config.Password {
+		if config.Config.TotpEnabled && config.Config.TotpSecret != "" {
+			preAuthToken, err := generatePreAuthToken(req.Username)
+			if err != nil {
+				return nil, errors.New("failed to generate pre-auth token")
+			}
+			return types.LoginChallengeResponse{
+				RequiresTwoFactor: true,
+				PreAuthToken:      preAuthToken,
+			}, nil
+		}
 		token, err := generateToken(req.Username)
 		if err != nil {
 			return nil, errors.New("failed to generate token")
@@ -45,13 +56,70 @@ func Login(_ *struct{}, req *types.LoginRequest, _ string) (interface{}, error) 
 		if err != nil {
 			return nil, errors.New("failed to generate refresh token")
 		}
-		response := types.LoginResponse{
+		return types.LoginResponse{
 			Token:        token,
 			RefreshToken: refreshToken,
-		}
-		return response, nil
+		}, nil
 	}
 	return nil, errors.New("invalid username or password")
+}
+
+func VerifyTwoFactor(_ *struct{}, req *types.VerifyTwoFactorRequest, _ string) (interface{}, error) {
+	userId, err := decodePreAuthToken(req.PreAuthToken)
+	if err != nil {
+		return nil, errors.New("invalid or expired pre-auth token")
+	}
+	if !totp.Validate(req.Code, config.Config.TotpSecret) {
+		return nil, errors.New("invalid verification code")
+	}
+	token, err := generateToken(userId)
+	if err != nil {
+		return nil, errors.New("failed to generate token")
+	}
+	refreshToken, err := generateRefreshToken(userId)
+	if err != nil {
+		return nil, errors.New("failed to generate refresh token")
+	}
+	return types.LoginResponse{
+		Token:        token,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func VerifyTwoFactorWithRateLimit(c *gin.Context) func(*struct{}, *types.VerifyTwoFactorRequest, string) (interface{}, error) {
+	ip := GetRealIP(c)
+	limiter := getLoginLimiter(ip)
+	return func(_ *struct{}, req *types.VerifyTwoFactorRequest, lang string) (interface{}, error) {
+		if !limiter.Allow() {
+			return nil, errors.New("too many attempts, please try again later")
+		}
+		return VerifyTwoFactor(nil, req, lang)
+	}
+}
+
+func generatePreAuthToken(userId string) (string, error) {
+	claims := &jwt.RegisteredClaims{
+		Subject:   userId,
+		NotBefore: jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+		Audience:  jwt.ClaimStrings{"preauth"},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(config.Config.JwtSecret + "_preauth"))
+}
+
+func decodePreAuthToken(tokenString string) (string, error) {
+	var claims jwt.RegisteredClaims
+	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
+		return []byte(config.Config.JwtSecret + "_preauth"), nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if token == nil || !token.Valid {
+		return "", errors.New("invalid pre-auth token")
+	}
+	return claims.Subject, nil
 }
 
 func RefreshToken(_ *struct{}, req *types.RefreshTokenRequest, _ string) (interface{}, error) {

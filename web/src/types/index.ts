@@ -4,14 +4,22 @@ export interface LoginRequest {
   password: string;
 }
 
-// 登录响应数据
+// 登录响应数据（直接登录或 2FA 挑战）
 export interface LoginResponse {
   code: number;
   message: string;
   data: {
-    token: string;
-    refresh_token: string;
+    token?: string;
+    refresh_token?: string;
+    requires_2fa?: boolean;
+    pre_auth_token?: string;
   };
+}
+
+// 两步验证请求
+export interface VerifyTwoFactorRequest {
+  pre_auth_token: string;
+  code: string;
 }
 
 // API 响应通用格式

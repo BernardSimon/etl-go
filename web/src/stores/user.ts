@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { loginApi, refreshTokenApi } from "../api/auth";
+import { loginApi, refreshTokenApi, verify2FAApi } from "../api/auth";
 import {
   getToken,
   getRefreshToken,
@@ -19,11 +19,25 @@ export const useUserStore = defineStore("user", () => {
   const language = ref<string>(getLanguage() || "");
 
   /**
-   * 登录
+   * 登录（若开启 2FA 则返回挑战，不存 token）
    */
   const login = async (data: { username: string; password: string }) => {
     const res = await loginApi(data as any);
-    // 设置store 与本地token
+    if (res.data?.requires_2fa) {
+      return res;
+    }
+    token.value = res.data?.token || "";
+    refreshToken.value = res.data?.refresh_token || "";
+    setToken(res.data?.token || "");
+    setRefreshToken(res.data?.refresh_token || "");
+    return res;
+  };
+
+  /**
+   * 完成两步验证
+   */
+  const verifyTwoFactor = async (preAuthToken: string, code: string) => {
+    const res = await verify2FAApi({ pre_auth_token: preAuthToken, code });
     token.value = res.data?.token || "";
     refreshToken.value = res.data?.refresh_token || "";
     setToken(res.data?.token || "");
@@ -80,6 +94,7 @@ export const useUserStore = defineStore("user", () => {
     refreshToken,
     language,
     login,
+    verifyTwoFactor,
     refreshAccessToken,
     logout,
     resetUser,
