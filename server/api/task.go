@@ -142,19 +142,14 @@ func RunTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 		return nil, errors.New("task already scheduling")
 	}
 
-	m.Status = 1
-	if err := tx.Save(&m).Error; err != nil {
-		tx.Rollback()
-		return nil, errors.New("failed to update task status")
-	}
-
-	err := task.ScheduleMission(&m)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+	// 提前提交事务，释放 FOR UPDATE 行锁
+	// ScheduleMission 内部会通过 model.DB.Save 写入 status=1 和 entry_id
 	if err := tx.Commit().Error; err != nil {
 		return nil, errors.New("system error")
+	}
+
+	if err := task.ScheduleMission(&m); err != nil {
+		return nil, err
 	}
 
 	return i18n.Translate(lang, "success"), nil

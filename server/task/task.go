@@ -152,7 +152,10 @@ func ScheduleMission(mission *model.Task) error {
 	mission.IsRunning = false
 	eId := int(EntryID)
 	mission.EntryID = &eId
-	model.DB.Save(mission)
+	if err := model.DB.Save(mission).Error; err != nil {
+		cr.Remove(cron.EntryID(eId))
+		return err
+	}
 	return nil
 }
 func RunMissionManual(missionID string) error {
