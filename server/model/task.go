@@ -17,7 +17,7 @@ type Task struct {
 	LastSuccessTime *CustomTime     `json:"last_success_time"`
 	LastEndTime     *CustomTime     `json:"last_end_time"`
 	ErrMsg          string          `json:"err_msg"`
-	IsRunning       bool
+	IsRunning       bool            `json:"is_running"`
 	EntryID         *int // cron.EntryID
 }
 

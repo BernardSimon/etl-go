@@ -110,8 +110,8 @@ const getColumns = (): ColumnsType => [
   },
   {
     title: t('workflow.table.column.isRunning'),
-    dataIndex: "isRunning",
-    key: "isRunning",
+    dataIndex: "is_running",
+    key: "is_running",
     align: "center",
     width: 140,
     customRender: ({ text }: { text: boolean }) => (text ? t('common.yes') : t('common.no')),

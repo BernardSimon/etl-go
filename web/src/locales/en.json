@@ -57,6 +57,8 @@
   "layout.language.zh": "Simplified Chinese",
   "layout.language.en": "English",
   "layout.username": "Admin",
+  "layout.refreshBaseData": "Refresh Base Data",
+  "layout.refreshBaseData.success": "Base data refreshed successfully",
   "layout.logout": "Logout",
   "layout.logout.title": "Prompt",
   "layout.logout.content": "Are you sure you want to logout?",

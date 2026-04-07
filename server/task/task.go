@@ -75,12 +75,12 @@ func middleware(missionID string, runBy string) {
 		zap.L().Error("系统错误，执行未调度任务", zap.String("service", "task"), zap.String("name", mission.ID))
 		return
 	}
-	if mission.IsRunning {
+	if mission.IsRunning && runBy == "system" {
 		zap.L().Info("任务正在运行中,下个周期将再次尝试", zap.String("service", "task"), zap.String("name", mission.ID))
 		return
 	}
 
-	// 标记任务开始运行
+	// 标记任务开始运行（manual 模式下 is_running 已由 RunMissionManual 原子写入，此处写入无副作用）
 	mission.IsRunning = true
 	mission.LastRunTime = &runtime
 	if err := model.DB.Save(&mission).Error; err != nil {

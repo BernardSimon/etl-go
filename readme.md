@@ -309,7 +309,9 @@ log:
   compress: true
 
 database:
-  path: ./data.db
+  driver: sqlite        # sqlite（默认）| mysql | postgres
+  path: ./data.db       # 仅 driver=sqlite 时有效
+  # dsn: ""             # driver=mysql/postgres 时填写连接字符串
   maxOpenConns: 10
   maxIdleConns: 5
   connMaxLifetime: 300
@@ -330,10 +332,33 @@ totpEnabled: false
 totpSecret: "YOUR_BASE32_SECRET"
 ```
 
+**切换到 MySQL：**
+
+```yaml
+database:
+  driver: mysql
+  dsn: "user:password@tcp(127.0.0.1:3306)/etl?charset=utf8mb4&parseTime=True&loc=Local"
+  maxOpenConns: 20
+  maxIdleConns: 10
+```
+
+**切换到 PostgreSQL：**
+
+```yaml
+database:
+  driver: postgres
+  dsn: "host=127.0.0.1 user=etl password=password dbname=etl port=5432 sslmode=disable"
+  maxOpenConns: 20
+  maxIdleConns: 10
+```
+
 ### 关键配置项
 
 - `database`
-  - 平台元数据库配置，默认是 SQLite
+  - 平台元数据库配置，支持 `sqlite`（默认）、`mysql`、`postgres`
+  - `driver`：数据库类型，留空等同于 `sqlite`
+  - `path`：SQLite 数据库文件路径，仅 `driver=sqlite` 时有效
+  - `dsn`：MySQL / PostgreSQL 连接字符串，`driver` 为这两者时必填
 - `pipeline.batchSize`
   - Sink 每次批量写入的记录数
 - `pipeline.channelSize`
@@ -1224,7 +1249,9 @@ log:
   compress: true
 
 database:
-  path: ./data.db
+  driver: sqlite        # sqlite (default) | mysql | postgres
+  path: ./data.db       # only used when driver=sqlite
+  # dsn: ""             # required when driver=mysql or driver=postgres
   maxOpenConns: 10
   maxIdleConns: 5
   connMaxLifetime: 300
@@ -1245,10 +1272,33 @@ totpEnabled: false
 totpSecret: "YOUR_BASE32_SECRET"
 ```
 
+**Switch to MySQL:**
+
+```yaml
+database:
+  driver: mysql
+  dsn: "user:password@tcp(127.0.0.1:3306)/etl?charset=utf8mb4&parseTime=True&loc=Local"
+  maxOpenConns: 20
+  maxIdleConns: 10
+```
+
+**Switch to PostgreSQL:**
+
+```yaml
+database:
+  driver: postgres
+  dsn: "host=127.0.0.1 user=etl password=password dbname=etl port=5432 sslmode=disable"
+  maxOpenConns: 20
+  maxIdleConns: 10
+```
+
 ### Key Configuration Items
 
 - `database`
-  - Platform metadata database configuration, SQLite by default
+  - Platform metadata database. Supports `sqlite` (default), `mysql`, and `postgres`
+  - `driver`: Database type; omitting this field defaults to `sqlite`
+  - `path`: SQLite file path; only used when `driver=sqlite`
+  - `dsn`: Connection string for MySQL / PostgreSQL; required when using either of those drivers
 - `pipeline.batchSize`
   - Number of records written per sink batch
 - `pipeline.channelSize`

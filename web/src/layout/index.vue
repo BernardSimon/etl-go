@@ -109,6 +109,11 @@
             </div>
             <template #overlay>
               <a-menu @click="handleMenuClick">
+                <a-menu-item key="refresh">
+                  <ReloadOutlined />
+                  {{ $t("layout.refreshBaseData") }}
+                </a-menu-item>
+                <a-menu-divider />
                 <a-menu-item key="logout">
                   <LogoutOutlined />
                   {{ $t("layout.logout") }}
@@ -164,15 +169,18 @@
 import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "../stores/user";
-import { Modal } from "ant-design-vue";
+import { Modal, message } from "ant-design-vue";
 import { useI18n } from "vue-i18n"
 const { t } = useI18n()
 import {
   UserOutlined,
   LogoutOutlined,
+  ReloadOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
 } from "@ant-design/icons-vue";
+import { getDataSourceTypeList } from "../api/datasource";
+import { getTypeByComponent } from "../api/mission";
 import { sidebarItems } from "./sidebarItems";
 
 const route = useRoute();
@@ -296,6 +304,13 @@ watch(
 
 // 用户菜单
 const handleMenuClick = async (e: any) => {
+  if (e.key === "refresh") {
+    await Promise.all([
+      getDataSourceTypeList(true),
+      getTypeByComponent(true),
+    ]);
+    message.success(t("layout.refreshBaseData.success"));
+  }
   if (e.key === "logout") {
     Modal.confirm({
       title:  t("layout.logout.title"),

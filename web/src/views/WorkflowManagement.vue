@@ -251,8 +251,8 @@ const getColumns = (): any[] => [
   },
   {
     title: t('workflow.table.column.isRunning'),
-    dataIndex: "isRunning",
-    key: "isRunning",
+    dataIndex: "is_running",
+    key: "is_running",
     align: "center",
     width: 140,
     customRender: ({ text }: { text: boolean }) => (text ? t('common.yes') : t('common.no')),
@@ -579,7 +579,7 @@ const handleRun = (id: string) => {
         .then((res: any) => {
           if (res.code === 0) {
             message.success(t('workflow.start.success'));
-            patchTaskRow(id, { status: 1, isRunning: true });
+            patchTaskRow(id, { status: 1, is_running: true });
           }
         })
         .catch((err: any) => {
@@ -598,7 +598,7 @@ const handleStop = (id: string) => {
         .then((res: any) => {
           if (res.code === 0) {
             message.success(t('workflow.stop.success'));
-            patchTaskRow(id, { status: 0, isRunning: false });
+            patchTaskRow(id, { status: 0, is_running: false });
           }
         })
         .catch((err: any) => {

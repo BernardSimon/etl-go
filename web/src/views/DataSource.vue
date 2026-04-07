@@ -210,6 +210,7 @@ import {
   testDataSource,
   deleteDataSource,
 } from "../api/datasource.ts";
+import { getTypeByComponent } from "../api/mission";
 import { useI18n } from "vue-i18n";
 
 import { message, Modal } from "ant-design-vue";
@@ -499,6 +500,7 @@ const handleAddDataSource = () => {
           );
           addDataSourceDialog.value.show = false;
           fetchDataSourceList();
+          getTypeByComponent(true);
         }
       })
       .catch((err) => {
@@ -592,6 +594,7 @@ const handleDelete = (row: any) => {
             if (res.code === 0) {
               message.success(t("datasource.delete.success"));
               fetchDataSourceList();
+              getTypeByComponent(true);
             }
           })
           .catch((err: any) => {
