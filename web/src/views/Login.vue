@@ -84,7 +84,7 @@
             :placeholder="$t('login.totp.placeholder')"
             size="large"
             allow-clear
-            maxlength="6"
+            :maxlength="6"
             @pressEnter="handleVerifyTotp"
           >
             <template #prefix>
