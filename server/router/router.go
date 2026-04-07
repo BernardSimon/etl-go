@@ -42,6 +42,7 @@ func Register(engine *gin.Engine) {
 	v1.POST("/data-sources/test", AdminAPI(api.TestDataSource, true))
 	v1.GET("/data-sources", AdminAPI(api.GetDataSourceList))
 	v1.GET("/data-sources/types", AdminAPI(api.GetDataSourceTypeList))
+	v1.GET("/data-sources/:id", AdminAPI(api.GetDataSourceById))
 	v1.GET("/data-sources/:id/schema", AdminAPI(api.GetDataSourceSchema))
 	v1.DELETE("/data-sources/:id", AdminAPI(api.DeleteDataSource))
 

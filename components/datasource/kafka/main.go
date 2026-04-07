@@ -53,6 +53,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 			Required:     false,
 			DefaultValue: "",
 			Description:  "SASL password",
+			Mask:         true,
 		},
 		{
 			Key:          "tls_enabled",

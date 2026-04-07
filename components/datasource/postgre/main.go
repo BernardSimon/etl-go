@@ -45,6 +45,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 			Required:     true,
 			DefaultValue: "",
 			Description:  "postgresql password",
+			Mask:         true,
 		},
 		{
 			Key:          "database",

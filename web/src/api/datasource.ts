@@ -43,6 +43,7 @@ export const addDataSource = (data: {
 };
 
 export const testDataSource = (data: {
+  id?: string;
   type: string;
   data: {key: string,value: string}[];
 }) => {
@@ -71,6 +72,10 @@ export const deleteDataSource = (data: { id: string }) => {
  */
 export const getDataSourceList = () => {
   return request.get<ApiResponse<{ list: any[] }>>("/data-sources");
+};
+
+export const getDataSourceById = (id: string) => {
+  return request.get<ApiResponse<{id: string; name: string; type: string; data: {key: string, value: string}[]}>>(`/data-sources/${id}`);
 };
 
 export const getDataSourceSchema = (id: string) => {
