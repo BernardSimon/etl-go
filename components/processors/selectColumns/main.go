@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/params"
 	"github.com/BernardSimon/etl-go/etl/core/processor"
@@ -70,10 +71,14 @@ func (p *Processor) Process(ctx context.Context, r record.Record) (record.Record
 	newRecord := make(record.Record, len(p.columnsToKeep))
 
 	for _, colName := range p.columnsToKeep {
-		// 检查原始记录中是否存在该列。
+		// 先尝试直接匹配，再尝试去 BOM 后匹配（兼容 CSV source 首列 BOM 问题）
 		if val, ok := r[colName]; ok {
-			// 如果存在，则将其添加到新记录中。
 			newRecord[colName] = val
+		} else {
+			bomKey := "\uFEFF" + colName
+			if val, ok := r[bomKey]; ok {
+				newRecord[colName] = val
+			}
 		}
 	}
 
@@ -87,14 +92,19 @@ func (p *Processor) Close() error {
 
 func (p *Processor) HandleColumns(columns *map[string]string) {
 	for k := range *columns {
+		cleanK := strings.TrimLeft(strings.TrimSpace(k), "\uFEFF")
 		match := false
 		for _, colName := range p.columnsToKeep {
-			if k == colName {
+			if cleanK == colName {
 				match = true
 				break
 			}
 		}
 		if !match {
+			delete(*columns, k)
+		} else if cleanK != k {
+			// BOM 列名替换为干净的列名
+			(*columns)[cleanK] = cleanK
 			delete(*columns, k)
 		}
 	}

@@ -70,30 +70,31 @@ func (p *Processor) Open(ctx context.Context, config map[string]string) error {
 //
 // 如果在映射中指定的旧列名不存在于记录中，它将被静默忽略。
 //
-// **[CRITICAL] 警告：命名冲突与数据丢失风险**
-// 当前实现通过遍历输入记录来构建一个新记录。如果一个重命名操作（例如 `A` -> `B`）
-// 与一个已存在且未被重命名的列（`B`）发生冲突，那么输出记录中 `B` 的最终值将
-// 取决于 Go 语言不确定的 map 迭代顺序。这可能导致不可预测的数据丢失。
+// Process 采用两阶段写入，保证行为确定性：
+//  1. 第一阶段：将所有不在 mapping 中的列（去 BOM 后）写入新记录。
+//  2. 第二阶段：将 mapping 中的列执行重命名后写入，若新列名与已有列冲突，重命名结果优先（覆盖）。
 //
-// **强烈建议**：确保配置的 [mapping](file:///Users/szy/Desktop/code/etl-go/components/processors/renameColumn/main.go#L19-L19) 中，新列名不会与任何未被重命名的现有列名冲突。
-// ... existing code ...
+// 注意：若配置了重命名 A→B，且 B 列本身也存在于原记录中，B 的原始值将被丢弃。
+// 请确保新列名不与其他未被重命名的列冲突。
 func (p *Processor) Process(ctx context.Context, r record.Record) (record.Record, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	newRecord := make(record.Record, len(r))
 
+	// 第一阶段：复制不需要重命名的列（同时去除 BOM）
 	for oldKey, value := range r {
-		// 移除 BOM 字符 (U+FEFF) 和其他空白字符
 		cleanOldKey := strings.TrimLeft(strings.TrimSpace(oldKey), "\uFEFF")
+		if _, willBeRenamed := p.mapping[cleanOldKey]; !willBeRenamed {
+			newRecord[cleanOldKey] = value
+		}
+	}
 
-		// 检查这个 key 是否在我们的重命名映射中。
+	// 第二阶段：执行重命名，rename 结果优先
+	for oldKey, value := range r {
+		cleanOldKey := strings.TrimLeft(strings.TrimSpace(oldKey), "\uFEFF")
 		if newKey, ok := p.mapping[cleanOldKey]; ok {
-			// 如果是，使用新的 key。
 			newRecord[newKey] = value
-		} else {
-			// 如果不是，则保留原样。
-			newRecord[oldKey] = value
 		}
 	}
 
@@ -107,20 +108,24 @@ func (p *Processor) Close() error {
 	return nil
 }
 
-// ... existing code ...
+// HandleColumns 与 Process 保持相同的两阶段逻辑，确保传递给 Sink 的列 schema 与运行时记录完全一致。
+// 同时去除所有列名的 BOM，避免 BOM 传播到 Sink 导致 SQL 列名错误。
 func (p *Processor) HandleColumns(columns *map[string]string) {
-	var newColumns = make(map[string]string)
+	newColumns := make(map[string]string, len(*columns))
 	mapping := p.mapping
-	for k, _ := range *columns {
-		// 移除 BOM 字符 (U+FEFF) 和其他空白字符
+	// 第一阶段：不需要重命名的列（去 BOM）
+	for k := range *columns {
+		cleanKey := strings.TrimLeft(strings.TrimSpace(k), "\uFEFF")
+		if _, willBeRenamed := mapping[cleanKey]; !willBeRenamed {
+			newColumns[cleanKey] = cleanKey
+		}
+	}
+	// 第二阶段：重命名的列
+	for k := range *columns {
 		cleanKey := strings.TrimLeft(strings.TrimSpace(k), "\uFEFF")
 		if newKey, ok := mapping[cleanKey]; ok {
 			newColumns[newKey] = newKey
-		} else {
-			newColumns[k] = k
 		}
 	}
 	*columns = newColumns
 }
-
-// ... existing code ...

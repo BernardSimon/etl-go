@@ -43,9 +43,10 @@ func SetMissions() {
 		zap.L().Error("发现被中断任务，请查看任务运行记录", zap.String("service", "system"), zap.String("name", config.Ip))
 	}
 	if tx.Error != nil {
-		zap.L().Error("任务启动失败-数据库查询失败", zap.String("service", "system"), zap.String("name", config.Ip), zap.Error(err))
+		zap.L().Error("任务启动失败-数据库查询失败", zap.String("service", "system"), zap.String("name", config.Ip), zap.Error(tx.Error))
 		os.Exit(1)
 	}
+	cr.Start()
 	if len(missions) == 0 {
 		zap.L().Info("系统任务已启动", zap.String("service", "system"), zap.String("name", config.Ip))
 		return
@@ -59,7 +60,6 @@ func SetMissions() {
 			continue
 		}
 	}
-	cr.Start()
 	zap.L().Info("系统任务已启动", zap.String("service", "system"), zap.String("name", config.Ip))
 }
 
@@ -156,9 +156,14 @@ func ScheduleMission(mission *model.Task) error {
 	return nil
 }
 func RunMissionManual(missionID string) error {
-	var isRunning bool
-	model.DB.Model(&model.Task{}).Where("id = ?", missionID).Select("is_running").Find(&isRunning)
-	if isRunning {
+	// 用条件更新原子地抢占 is_running 标志，避免并发重复执行
+	tx := model.DB.Model(&model.Task{}).
+		Where("id = ? AND is_running = ?", missionID, false).
+		UpdateColumn("is_running", true)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
 		return errors.New("任务正在运行中")
 	}
 	go middleware(missionID, "manual")
@@ -202,9 +207,6 @@ func RunTask(mission model.Task, runBy string) (err error) {
 	cfg := pipeline.Config{
 		BatchSize:   config.Config.Pipeline.BatchSize,
 		ChannelSize: config.Config.Pipeline.ChannelSize,
-	}
-	if err != nil {
-		return
 	}
 	if mission.ID == "" {
 		return errors.New("任务不存在")
@@ -325,8 +327,10 @@ func GetValueByName(name string) (string, error) {
 		return "", errors.New("variable type does not exist")
 	}
 	var variableConfig = make(map[string]string)
-	for _, param := range *variable.Value {
-		variableConfig[param.Key] = param.Value
+	if variable.Value != nil {
+		for _, param := range *variable.Value {
+			variableConfig[param.Key] = param.Value
+		}
 	}
 	var vDatasource datasource.Datasource
 	if v.Datasource != nil {
