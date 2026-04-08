@@ -62,6 +62,10 @@ func (d *DataSource) Init(config map[string]string) error {
 	if err != nil {
 		return err
 	}
+	if err = datasource.ConfigureSQLDBPoolFromConfig(d.db, config); err != nil {
+		_ = d.db.Close()
+		return err
+	}
 	if err = d.db.Ping(); err != nil {
 		return fmt.Errorf("sql executor: failed to connect to database: %w", err)
 	}

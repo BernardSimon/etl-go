@@ -42,6 +42,12 @@ type PipelineConfig struct {
 	ChannelSize int `yaml:"channelSize"` // default: 10000
 }
 
+type DatasourcePoolConfig struct {
+	MaxOpenConns    int `yaml:"maxOpenConns"`    // default: 5
+	MaxIdleConns    int `yaml:"maxIdleConns"`    // default: 2
+	ConnMaxLifetime int `yaml:"connMaxLifetime"` // seconds, default: 300
+}
+
 type configModel struct {
 	Username    string         `yaml:"username"`
 	Password    string         `yaml:"password"`
@@ -53,6 +59,7 @@ type configModel struct {
 	Log         LogConfig      `yaml:"log"`
 	Database    DatabaseConfig `yaml:"database"`
 	Pipeline    PipelineConfig `yaml:"pipeline"`
+	DatasourcePool DatasourcePoolConfig `yaml:"datasourcePool"`
 	ServerUrl   string         `yaml:"serverUrl"`
 	RunWeb      bool           `yaml:"runWeb"`
 	WebUrl      string         `yaml:"webUrl"`
@@ -97,6 +104,11 @@ func defaultConfig() configModel {
 		Pipeline: PipelineConfig{
 			BatchSize:   1000,
 			ChannelSize: 10000,
+		},
+		DatasourcePool: DatasourcePoolConfig{
+			MaxOpenConns:    5,
+			MaxIdleConns:    2,
+			ConnMaxLifetime: 300,
 		},
 		ServerUrl: "0.0.0.0:8080",
 		RunWeb:    true,
@@ -241,6 +253,15 @@ func applyRuntimeDefaults() {
 	if Config.Pipeline.ChannelSize <= 0 {
 		Config.Pipeline.ChannelSize = 10000
 	}
+	if Config.DatasourcePool.MaxOpenConns <= 0 {
+		Config.DatasourcePool.MaxOpenConns = 5
+	}
+	if Config.DatasourcePool.MaxIdleConns <= 0 {
+		Config.DatasourcePool.MaxIdleConns = 2
+	}
+	if Config.DatasourcePool.ConnMaxLifetime <= 0 {
+		Config.DatasourcePool.ConnMaxLifetime = 300
+	}
 	if Config.ServerUrl == "" {
 		Config.ServerUrl = "0.0.0.0:8080"
 	}
@@ -334,6 +355,15 @@ func SaveConfig() error {
 		return err
 	}
 	return os.WriteFile(configPath(), data, 0644)
+}
+
+func ApplyDatasourcePoolConfig(target map[string]string) {
+	if target == nil {
+		return
+	}
+	target["__pool_max_open_conns"] = fmt.Sprintf("%d", Config.DatasourcePool.MaxOpenConns)
+	target["__pool_max_idle_conns"] = fmt.Sprintf("%d", Config.DatasourcePool.MaxIdleConns)
+	target["__pool_conn_max_lifetime"] = fmt.Sprintf("%d", Config.DatasourcePool.ConnMaxLifetime)
 }
 
 // GetLocalIP 获取本地IP地址

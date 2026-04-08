@@ -7,6 +7,7 @@ import (
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/etl/pipeline"
+	"github.com/BernardSimon/etl-go/server/config"
 	"github.com/BernardSimon/etl-go/server/model"
 )
 
@@ -65,6 +66,7 @@ func (r *datasourceResolver) initDatasource(dsID interface{}, expectedType strin
 	if _, err := pipeline.HandleInternalConfig(&dsConfig); err != nil {
 		return nil, err
 	}
+	config.ApplyDatasourcePoolConfig(dsConfig)
 
 	if err := dsStore.Handle.Init(dsConfig); err != nil {
 		return nil, err
