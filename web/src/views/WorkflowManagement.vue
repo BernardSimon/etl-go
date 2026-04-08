@@ -24,6 +24,7 @@
 
         <div class="right">
           <a-button
+            class="refresh-button"
             shape="circle"
             :title="t('common.refresh')"
             :aria-label="t('common.refresh')"
@@ -48,7 +49,6 @@
             v-model:value="filters.status"
             :placeholder="t('workflow.search.status')"
             allow-clear
-            @change="handleFilterChange"
           >
             <a-select-option :value="0">{{ t('workflow.status.paused') }}</a-select-option>
             <a-select-option :value="1">{{ t('workflow.status.scheduling') }}</a-select-option>
@@ -58,11 +58,13 @@
             v-model:value="filters.taskType"
             :placeholder="t('workflow.search.taskType')"
             allow-clear
-            @change="handleFilterChange"
           >
             <a-select-option value="scheduled">{{ t('workflow.taskType.scheduled') }}</a-select-option>
             <a-select-option value="manual">{{ t('workflow.taskType.manual') }}</a-select-option>
           </a-select>
+          <a-button type="primary" class="search-button" @click="handleFilterChange">
+            {{ t('common.search') }}
+          </a-button>
         </div>
 
         <div class="batch-bar">
@@ -96,57 +98,48 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
-            <a-space wrap>
+            <a-space>
               <a-button
                   type="primary"
                   size="small"
                   :disabled="record.status === 1"
                   @click="handleEdit(record.data, record.id, record)"
-              >{{ t('workflow.action.edit') }}</a-button
-              >
+              >{{ t('workflow.action.edit') }}</a-button>
               <a-button
-                  type="default"
-                  size="small"
-                  @click="handleCopy(record)"
-              >{{ t('workflow.action.copy') }}</a-button
-              >
-              <a-button
+                  v-if="record.status !== 1"
                   type="default"
                   size="small"
                   class="success-button"
-                  :disabled="record.status === 1 || record.cron === 'manual'"
+                  :disabled="record.cron === 'manual'"
                   @click="handleRun(record.id)"
-              >{{ t('workflow.action.start') }}</a-button
-              >
+              >{{ t('workflow.action.start') }}</a-button>
               <a-button
+                  v-else
                   type="default"
                   size="small"
                   class="test-button"
-                  :disabled="record.status !== 1"
                   @click="handleStop(record.id)"
-              >{{ t('workflow.action.stop') }}</a-button
-              >
+              >{{ t('workflow.action.stop') }}</a-button>
               <a-button
                   type="default"
                   size="small"
                   class="success-button"
                   @click="handleRunOnce(record.id)"
-              >{{ t('workflow.action.runOnce') }}</a-button
-              >
-              <a-button
-                  type="default"
-                  size="small"
-                  @click="handleViewRecords(record)"
-              >{{ t('workflow.action.records') }}</a-button
-              >
-              <a-button
-                  type="default"
-                  class="error-button"
-                  size="small"
-                  :disabled="record.status === 1"
-                  @click="handleDelete(record.id)"
-              >{{ t('workflow.action.delete') }}</a-button
-              >
+              >{{ t('workflow.action.runOnce') }}</a-button>
+              <a-dropdown>
+                <a-button size="small">{{ t('workflow.action.more') }} ▾</a-button>
+                <template #overlay>
+                  <a-menu>
+                    <a-menu-item @click="handleCopy(record)">{{ t('workflow.action.copy') }}</a-menu-item>
+                    <a-menu-item @click="handlePreviewTask(record.id)">{{ t('missionConfig.preview.btn') }}</a-menu-item>
+                    <a-menu-item @click="handleViewRecords(record)">{{ t('workflow.action.records') }}</a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item :disabled="record.status === 1" @click="record.status !== 1 && handleDelete(record.id)">
+                      <span :class="record.status !== 1 ? 'text-danger' : ''">{{ t('workflow.action.delete') }}</span>
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
             </a-space>
           </template>
         </template>
@@ -165,6 +158,30 @@
         @success="fetchData"
         @templateSaved="fetchTemplates"
     />
+    <!-- 数据预览弹窗 -->
+    <a-modal
+        v-model:open="previewVisible"
+        :title="t('missionConfig.preview.modalTitle')"
+        width="80vw"
+        :footer="null"
+        :destroy-on-close="true"
+    >
+      <a-spin :spinning="previewLoading">
+        <div v-if="!previewLoading && previewColumns.length === 0" style="text-align:center;padding:40px;color:#939393;">
+          {{ t('missionConfig.preview.empty') }}
+        </div>
+        <a-table
+            v-else
+            :columns="previewColumns"
+            :data-source="previewRows"
+            :row-key="'_key'"
+            :scroll="{ x: 'max-content', y: 400 }"
+            size="small"
+            :pagination="false"
+        />
+      </a-spin>
+    </a-modal>
+
     <a-modal
         v-model:open="templateModal.visible"
         :title="t('workflow.template.modalTitle')"
@@ -210,6 +227,7 @@ import {
   runTaskOnce,
   getTaskTemplates,
   deleteTaskTemplate,
+  previewTask,
 } from "../api/mission";
 import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
@@ -311,7 +329,7 @@ const getColumns = (): any[] => [
     key: "action",
     align: "center",
     fixed: "right",
-    width: 610,
+    width: 300,
   },
 ];
 
@@ -587,6 +605,34 @@ const handleRun = (id: string) => {
   });
 };
 
+// 数据预览
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewColumns = ref<{ title: string; dataIndex: string; key: string; ellipsis: boolean }[]>([])
+const previewRows = ref<Record<string, any>[]>([])
+
+const handlePreviewTask = async (id: string) => {
+  if (!id) return
+  previewLoading.value = true
+  previewVisible.value = true
+  previewColumns.value = []
+  previewRows.value = []
+  try {
+    const res = await previewTask(id)
+    if (res.code === 0) {
+      previewColumns.value = (res.data.columns || []).map((col: string) => ({
+        title: col,
+        dataIndex: col,
+        key: col,
+        ellipsis: true,
+      }))
+      previewRows.value = (res.data.rows || []).map((row: Record<string, any>, i: number) => ({ ...row, _key: i }))
+    }
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 // 停止任务
 const handleStop = (id: string) => {
   if (!id) return;
@@ -648,6 +694,8 @@ onUnmounted(() => {
     margin-bottom: 16px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    gap: 12px;
   }
 }
 
@@ -660,8 +708,18 @@ onUnmounted(() => {
 
 .filter-bar {
   display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(180px, 1fr));
+  grid-template-columns: minmax(220px, 1.5fr) repeat(2, minmax(160px, 1fr)) auto;
   gap: 12px;
+  align-items: center;
+}
+
+.refresh-button {
+  flex: 0 0 auto;
+}
+
+.search-button {
+  min-width: 96px;
+  white-space: nowrap;
 }
 
 .batch-bar {
@@ -710,9 +768,25 @@ onUnmounted(() => {
 
   .workflow-container :deep(.filter-bar .ant-input),
   .workflow-container :deep(.filter-bar .ant-select),
-  .workflow-container :deep(.table-operations .ant-btn),
+  .workflow-container :deep(.table-operations .left .ant-btn),
   .batch-actions :deep(.ant-btn) {
     width: 100% !important;
+  }
+
+  .workflow-container .right {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .workflow-container .refresh-button {
+    width: 32px !important;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+
+  .workflow-container .search-button {
+    width: 100%;
   }
 
   .selection-hint {

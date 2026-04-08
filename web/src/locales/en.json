@@ -215,6 +215,7 @@
   "workflow.action.runOnce": "Execution",
   "workflow.action.records": "Records",
   "workflow.action.delete": "Delete",
+  "workflow.action.more": "More",
   "workflow.add.title": "Add Task",
   "workflow.edit.title": "Edit Task",
   "workflow.copy.title": "Copy Task",

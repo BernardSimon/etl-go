@@ -12,6 +12,7 @@
         </div>
         <div class="right">
           <a-button
+            class="refresh-button"
             shape="circle"
             :title="t('common.refresh')"
             :aria-label="t('common.refresh')"
@@ -420,6 +421,12 @@ onMounted(() => {
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.refresh-button {
+  flex: 0 0 auto;
 }
 
 .param-help {
@@ -438,10 +445,25 @@ onMounted(() => {
     gap: 12px;
   }
 
-  .left,
-  .right,
-  :deep(.table-operations .ant-btn) {
+  .left {
     width: 100%;
+  }
+
+  :deep(.table-operations .left .ant-btn) {
+    width: 100%;
+  }
+
+  .right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .refresh-button {
+    width: 32px !important;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
   }
 }
 </style>

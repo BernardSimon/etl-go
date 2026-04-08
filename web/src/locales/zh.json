@@ -214,6 +214,7 @@
   "workflow.action.runOnce": "手动执行",
   "workflow.action.records": "运行记录",
   "workflow.action.delete": "删除",
+  "workflow.action.more": "更多",
   "workflow.add.title": "新增",
   "workflow.edit.title": "编辑任务",
   "workflow.copy.title": "复制任务",

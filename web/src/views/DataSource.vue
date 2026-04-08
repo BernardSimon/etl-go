@@ -14,6 +14,7 @@
         </div>
         <div class="right">
           <a-button
+            class="refresh-button"
             shape="circle"
             :title="t('common.refresh')"
             :aria-label="t('common.refresh')"
@@ -642,6 +643,12 @@ onMounted(() => {
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.refresh-button {
+  flex: 0 0 auto;
 }
 
 .file-param-field {
@@ -714,8 +721,20 @@ onMounted(() => {
 
   .data-source-container :deep(.filter-bar .ant-input),
   .data-source-container :deep(.filter-bar .ant-select),
-  .data-source-container :deep(.table-operations .ant-btn) {
+  .data-source-container :deep(.table-operations .left .ant-btn) {
     width: 100% !important;
+  }
+
+  .data-source-container .right {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .data-source-container .refresh-button {
+    width: 32px !important;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
   }
 }
 </style>

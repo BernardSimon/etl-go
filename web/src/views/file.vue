@@ -11,7 +11,7 @@
             allow-clear
             @search="handleSearch"
           />
-          <a-button @click="fetchFileList">
+          <a-button class="refresh-button" @click="fetchFileList">
             {{ t('file.refresh') }}
           </a-button>
           <a-button type="primary" @click="showUploadModal">
@@ -369,6 +369,11 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.refresh-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .file-toolbar-actions :deep(.ant-input-search) {
   width: 260px;
 }
@@ -415,8 +420,13 @@ onUnmounted(() => {
     width: 100%;
   }
 
-  .file-toolbar :deep(.ant-btn) {
+  .file-toolbar :deep(.ant-btn:not(.refresh-button)) {
     width: 100%;
+  }
+
+  .refresh-button {
+    width: auto !important;
+    align-self: flex-end;
   }
 }
 </style>

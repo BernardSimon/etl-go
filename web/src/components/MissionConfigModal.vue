@@ -761,48 +761,15 @@
       @confirm="handleFileLibraryConfirm"
     />
 
-    <!-- 数据预览弹窗 -->
-    <a-modal
-      v-model:open="previewVisible"
-      :title="t('missionConfig.preview.modalTitle')"
-      width="80vw"
-      :footer="null"
-      :destroy-on-close="true"
-    >
-      <a-spin :spinning="previewLoading">
-        <div v-if="!previewLoading && previewColumns.length === 0" class="preview-empty">
-          {{ t('missionConfig.preview.empty') }}
-        </div>
-        <a-table
-          v-else
-          :columns="previewColumns"
-          :data-source="previewRows"
-          :row-key="'_key'"
-          :scroll="{ x: 'max-content', y: 400 }"
-          size="small"
-          :pagination="false"
-        />
-      </a-spin>
-    </a-modal>
     <template #footer>
       <a-space v-if="mode !== 'read'">
         <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
         <a-button :loading="templateSaving" @click="handleSaveTemplate">
           {{ t('missionConfig.template.save') }}
         </a-button>
-        <a-tooltip :title="props.id ? '' : t('missionConfig.preview.saveFirst')">
-          <a-button :loading="previewLoading" @click="handlePreview">
-            {{ t('missionConfig.preview.btn') }}
-          </a-button>
-        </a-tooltip>
         <a-button type="primary" @click="handleOk">{{ t('common.confirm') }}</a-button>
       </a-space>
       <a-space v-else>
-        <a-tooltip :title="props.id ? '' : t('missionConfig.preview.saveFirst')">
-          <a-button :loading="previewLoading" @click="handlePreview">
-            {{ t('missionConfig.preview.btn') }}
-          </a-button>
-        </a-tooltip>
         <a-button @click="handleCancel">{{ t('common.close') }}</a-button>
       </a-space>
     </template>
@@ -813,7 +780,7 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
-import { addTask, updateTask, getTypeByComponent, saveTaskTemplate, previewTask } from "../api/mission";
+import { addTask, updateTask, getTypeByComponent, saveTaskTemplate } from "../api/mission";
 import type { ConfigItem, TaskType, ParamItem } from "../types/mission";
 import { useI18n } from "vue-i18n";
 import { getFileList } from "../api/file.ts";
@@ -1379,38 +1346,6 @@ const removeSelectedFile = (param: ParamItem, id: string) => {
   const nextIds = parseFileIds(param.value).filter((item) => item !== id);
   param.value = isMultiFileParam(param) ? nextIds.join(",") : "";
 };
-
-// ── 数据预览 ──────────────────────────────────────────────────────────────────
-
-const previewVisible = ref(false)
-const previewLoading = ref(false)
-const previewColumns = ref<{ title: string; dataIndex: string; key: string; ellipsis: boolean }[]>([])
-const previewRows = ref<Record<string, any>[]>([])
-
-const handlePreview = async () => {
-  if (!props.id) {
-    message.info(t('missionConfig.preview.saveFirst'))
-    return
-  }
-  previewLoading.value = true
-  previewVisible.value = true
-  previewColumns.value = []
-  previewRows.value = []
-  try {
-    const res = await previewTask(props.id)
-    if (res.code === 0) {
-      previewColumns.value = (res.data.columns || []).map(col => ({
-        title: col,
-        dataIndex: col,
-        key: col,
-        ellipsis: true,
-      }))
-      previewRows.value = (res.data.rows || []).map((row, i) => ({ ...row, _key: i }))
-    }
-  } finally {
-    previewLoading.value = false
-  }
-}
 
 // ── Schema 发现 ───────────────────────────────────────────────────────────────
 
