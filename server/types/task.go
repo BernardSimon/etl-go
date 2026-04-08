@@ -105,6 +105,11 @@ type GetTaskRecordListRequest struct {
 	TaskID      string `form:"task_id"`
 }
 
+type CleanTaskRecordsRequest struct {
+	Status *int   `form:"status"` // 1=成功 2=失败 nil=全部已完成
+	Before string `form:"before"` // RFC3339 或 2006-01-02，清理该时间点之前的记录
+}
+
 // ── 组件元数据 ─────────────────────────────────────────────────────────────────
 
 type GetTypeByComponentResponse struct {

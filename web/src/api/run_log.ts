@@ -42,3 +42,12 @@ export const getTaskRecordLogs = (id: string) => {
     log: string;
   }>>(`/task-records/${id}/logs`);
 };
+
+/**
+ * 清理运行记录（运行中的记录不会被清理）
+ * status: 1=成功 2=失败 不传=全部已完成
+ * before: YYYY-MM-DD，清理该日期之前的记录，不传则不限时间
+ */
+export const cleanTaskRecords = (params: { status?: number; before?: string }) => {
+  return request.delete<ApiResponse<{ deleted: number }>>("/task-records", { params });
+};

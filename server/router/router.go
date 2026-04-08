@@ -74,6 +74,7 @@ func Register(engine *gin.Engine) {
 
 	// 任务执行记录
 	v1.GET("/task-records", AdminAPI(api.GetTaskRecordList))
+	v1.DELETE("/task-records", AdminAPI(api.CleanTaskRecords))
 	v1.POST("/task-records/:id/cancel", AdminAPI(api.CancelTaskRecord))
 	v1.GET("/task-records/:id/files", AdminAPI(api.GetFileListByTaskRecordID))
 	v1.GET("/task-records/:id/params", AdminAPI(api.GetTaskRecordParams))

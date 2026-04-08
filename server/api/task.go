@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"time"
 
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/server/model"
@@ -300,6 +301,30 @@ func GetTaskLatestLog(uri *types.IDUri, _ *struct{}, _ string) (interface{}, err
 		"end_time":   taskRecord.EndTime,
 		"message":    taskRecord.Message,
 	}, nil
+}
+
+func CleanTaskRecords(_ *struct{}, body *types.CleanTaskRecordsRequest, _ string) (interface{}, error) {
+	tx := model.DB.Model(&model.TaskRecord{}).Where("status != 0") // 运行中的记录不清理
+	if body.Status != nil {
+		tx = tx.Where("status = ?", *body.Status)
+	}
+	if body.Before != "" {
+		var t time.Time
+		var err error
+		t, err = time.Parse(time.RFC3339, body.Before)
+		if err != nil {
+			t, err = time.Parse("2006-01-02", body.Before)
+			if err != nil {
+				return nil, errors.New("invalid before date format, use RFC3339 or YYYY-MM-DD")
+			}
+		}
+		tx = tx.Where("created_at < ?", t)
+	}
+	result := tx.Delete(&model.TaskRecord{})
+	if result.Error != nil {
+		return nil, errors.New("failed to clean records")
+	}
+	return map[string]interface{}{"deleted": result.RowsAffected}, nil
 }
 
 func CancelTaskRecord(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
