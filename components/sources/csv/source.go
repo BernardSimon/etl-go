@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/params"
 	"github.com/BernardSimon/etl-go/etl/core/record"
 	"github.com/BernardSimon/etl-go/etl/core/source"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 var name = "csv"
@@ -29,6 +32,7 @@ type Source struct {
 	delimiter rune        // CSV文件的分隔符，默认为逗号
 	line      int         // 当前已读取的行数，用于精确的错误报告
 	hasHeader bool
+	encoding  string
 }
 
 func SourceCreator() (string, source.Source, *string, []params.Params) {
@@ -51,6 +55,12 @@ func SourceCreator() (string, source.Source, *string, []params.Params) {
 			DefaultValue: "true",
 			Required:     true,
 			Description:  "Whether the CSV file has a header row",
+		},
+		{
+			Key:          "encoding",
+			DefaultValue: "utf-8",
+			Required:     false,
+			Description:  "File encoding: utf-8, gbk, or gb18030",
 		},
 	}
 
@@ -79,6 +89,7 @@ func (s *Source) Open(ctx context.Context, config map[string]string, dataSource 
 		s.delimiter = ','
 	}
 	s.hasHeader = config["has_header"] != "false"
+	s.encoding = normalizeEncoding(config["encoding"])
 	s.header = nil
 	s.firstRow = nil
 
@@ -96,7 +107,12 @@ func (s *Source) Open(ctx context.Context, config map[string]string, dataSource 
 		return fmt.Errorf("csv source: failed to open file %s: %w", s.filePath, err)
 	}
 
-	s.reader = csv.NewReader(s.file)
+	csvInput, err := wrapReaderWithEncoding(s.file, s.encoding)
+	if err != nil {
+		return err
+	}
+
+	s.reader = csv.NewReader(csvInput)
 	s.reader.Comma = s.delimiter
 
 	s.line = 0
@@ -173,4 +189,32 @@ func (s *Source) Column() map[string]string {
 		columns[v] = v
 	}
 	return columns
+}
+
+func normalizeEncoding(raw string) string {
+	encoding := strings.ToLower(strings.TrimSpace(raw))
+	if encoding == "" {
+		return "utf-8"
+	}
+	switch encoding {
+	case "utf8":
+		return "utf-8"
+	case "gb2312":
+		return "gbk"
+	default:
+		return encoding
+	}
+}
+
+func wrapReaderWithEncoding(r io.Reader, encoding string) (io.Reader, error) {
+	switch encoding {
+	case "utf-8":
+		return r, nil
+	case "gbk":
+		return transform.NewReader(r, simplifiedchinese.GBK.NewDecoder()), nil
+	case "gb18030":
+		return transform.NewReader(r, simplifiedchinese.GB18030.NewDecoder()), nil
+	default:
+		return nil, fmt.Errorf("csv source: unsupported encoding %q, expected utf-8, gbk, or gb18030", encoding)
+	}
 }

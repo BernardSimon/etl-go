@@ -1,6 +1,7 @@
 package json
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,11 +9,14 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/BernardSimon/etl-go/etl/core/datasource"
 	"github.com/BernardSimon/etl-go/etl/core/params"
 	"github.com/BernardSimon/etl-go/etl/core/record"
 	"github.com/BernardSimon/etl-go/etl/core/source"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 var name = "json"
@@ -29,6 +33,7 @@ type Source struct {
 	file     *os.File      // 文件句柄
 	decoder  *json.Decoder // Go 标准库的流式 JSON 解码器
 	keys     []string      // 所有可能的键集合
+	encoding string
 }
 
 // SourceCreator 实现了源组件的创建接口，返回组件名称、实例和参数定义
@@ -45,6 +50,12 @@ func SourceCreator() (string, source.Source, *string, []params.Params) {
 			DefaultValue: "100",
 			Required:     true,
 			Description:  "Number of rows to sample for determining keys, default is 100",
+		},
+		{
+			Key:          "encoding",
+			DefaultValue: "utf-8",
+			Required:     false,
+			Description:  "File encoding: utf-8, gbk, or gb18030",
 		},
 	}
 
@@ -63,6 +74,7 @@ func (s *Source) Open(ctx context.Context, config map[string]string, dataSource 
 		return fmt.Errorf("json source: config is missing required key 'file_path'")
 	}
 	s.filePath = filePath
+	s.encoding = normalizeEncoding(config["encoding"])
 
 	// 采样行数
 	keysSampleRows := 100
@@ -84,7 +96,10 @@ func (s *Source) Open(ctx context.Context, config map[string]string, dataSource 
 		}
 	}()
 
-	s.decoder = json.NewDecoder(s.file)
+	s.decoder, err = newJSONDecoder(s.file, s.encoding)
+	if err != nil {
+		return err
+	}
 
 	// 验证文件是否以 `[` 开头。
 	token, err := s.decoder.Token()
@@ -130,7 +145,10 @@ func (s *Source) Open(ctx context.Context, config map[string]string, dataSource 
 	if err != nil {
 		return err
 	}
-	s.decoder = json.NewDecoder(s.file)
+	s.decoder, err = newJSONDecoder(s.file, s.encoding)
+	if err != nil {
+		return err
+	}
 	_, err = s.decoder.Token()
 	if err != nil {
 		return err
@@ -189,4 +207,48 @@ func (s *Source) Column() map[string]string {
 		columns[v] = v
 	}
 	return columns
+}
+
+func normalizeEncoding(raw string) string {
+	encoding := strings.ToLower(strings.TrimSpace(raw))
+	if encoding == "" {
+		return "utf-8"
+	}
+	switch encoding {
+	case "utf8":
+		return "utf-8"
+	case "gb2312":
+		return "gbk"
+	default:
+		return encoding
+	}
+}
+
+func newJSONDecoder(r io.Reader, encoding string) (*json.Decoder, error) {
+	decodedReader, err := wrapReaderWithEncoding(r, encoding)
+	if err != nil {
+		return nil, err
+	}
+	return json.NewDecoder(stripUTF8BOM(decodedReader)), nil
+}
+
+func wrapReaderWithEncoding(r io.Reader, encoding string) (io.Reader, error) {
+	switch encoding {
+	case "utf-8":
+		return r, nil
+	case "gbk":
+		return transform.NewReader(r, simplifiedchinese.GBK.NewDecoder()), nil
+	case "gb18030":
+		return transform.NewReader(r, simplifiedchinese.GB18030.NewDecoder()), nil
+	default:
+		return nil, fmt.Errorf("json source: unsupported encoding %q, expected utf-8, gbk, or gb18030", encoding)
+	}
+}
+
+func stripUTF8BOM(r io.Reader) io.Reader {
+	br := bufio.NewReader(r)
+	if bom, err := br.Peek(3); err == nil && len(bom) == 3 && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF {
+		_, _ = br.Discard(3)
+	}
+	return br
 }
