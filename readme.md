@@ -320,6 +320,11 @@ pipeline:
   batchSize: 1000
   channelSize: 10000
 
+datasourcePool:
+  maxOpenConns: 5
+  maxIdleConns: 2
+  connMaxLifetime: 300
+
 serverUrl: 0.0.0.0:8080
 runWeb: false
 webUrl: 0.0.0.0:8081
@@ -363,6 +368,12 @@ database:
   - Sink 每次批量写入的记录数
 - `pipeline.channelSize`
   - pipeline 各阶段通道缓冲大小
+- `datasourcePool`
+  - 任务运行时 SQL 类数据源的连接池配置，作用于 MySQL、PostgreSQL、Doris 等数据源
+  - `maxOpenConns`：单个数据源实例允许的最大连接数
+  - `maxIdleConns`：单个数据源实例保留的最大空闲连接数
+  - `connMaxLifetime`：连接最大复用时长，单位秒
+  - 如果 Doris 报 `Reach limit of connections`，建议先调小到 `maxOpenConns: 2`、`maxIdleConns: 1`
 - `serverUrl`
   - API 服务监听地址
 - `runWeb`
@@ -1260,6 +1271,11 @@ pipeline:
   batchSize: 1000
   channelSize: 10000
 
+datasourcePool:
+  maxOpenConns: 5
+  maxIdleConns: 2
+  connMaxLifetime: 300
+
 serverUrl: 0.0.0.0:8080
 runWeb: false
 webUrl: 0.0.0.0:8081
@@ -1303,6 +1319,12 @@ database:
   - Number of records written per sink batch
 - `pipeline.channelSize`
   - Buffer size of pipeline channels
+- `datasourcePool`
+  - SQL datasource pool settings used during task execution for MySQL, PostgreSQL, Doris, and similar datasources
+  - `maxOpenConns`: Maximum number of open connections per datasource instance
+  - `maxIdleConns`: Maximum number of idle connections kept per datasource instance
+  - `connMaxLifetime`: Maximum connection reuse time in seconds
+  - If Doris reports `Reach limit of connections`, try lowering this to `maxOpenConns: 2` and `maxIdleConns: 1` first
 - `serverUrl`
   - Listening address for the API service
 - `runWeb`
