@@ -143,8 +143,20 @@ func RunTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 		return nil, errors.New("task already scheduling")
 	}
 
-	// 提前提交事务，释放 FOR UPDATE 行锁
-	// ScheduleMission 内部会通过 model.DB.Save 写入 status=1 和 entry_id
+	if err := tx.Model(&m).Updates(map[string]interface{}{
+		"status":     1,
+		"is_running": false,
+		"entry_id":   nil,
+	}).Error; err != nil {
+		tx.Rollback()
+		return nil, errors.New("system error")
+	}
+
+	m.Status = 1
+	m.IsRunning = false
+	m.EntryID = nil
+
+	// 先在持锁事务里写入 status=1，避免 cron 在整分钟边界触发时读到未调度状态。
 	if err := tx.Commit().Error; err != nil {
 		return nil, errors.New("system error")
 	}
@@ -159,11 +171,12 @@ func RunTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 func StopTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error) {
 	var m model.Task
 	model.DB.Where("id = ?", uri.Id).Find(&m)
-	defer model.DB.Save(&m)
 	if m.Status != 1 {
 		return nil, errors.New("unable to stop scheduling task has not started yet")
 	}
-	task.CancelMission(&m)
+	if err := task.CancelMission(&m); err != nil {
+		return nil, errors.New("failed to stop task")
+	}
 	return i18n.Translate(lang, "success"), nil
 }
 
