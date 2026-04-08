@@ -27,18 +27,17 @@
         </div>
       </div>
 
-      <a-space class="filter-bar" style="margin-bottom: 16px" wrap>
+      <div class="filter-bar">
         <a-input
           v-model:value="filters.keyword"
           :placeholder="t('datasource.search.keyword')"
           allow-clear
-          style="width: 220px"
+          @pressEnter="handleFilterChange"
         />
         <a-select
           v-model:value="filters.type"
           :placeholder="t('datasource.search.type')"
           allow-clear
-          style="width: 180px"
         >
           <a-select-option
             v-for="item in dataSourceTypeList"
@@ -48,7 +47,10 @@
             {{ item.type }}
           </a-select-option>
         </a-select>
-      </a-space>
+        <a-button type="primary" class="search-button" @click="handleFilterChange">
+          {{ t('common.search') }}
+        </a-button>
+      </div>
 
       <a-table
           :columns="getColumns()"
@@ -285,15 +287,26 @@ const filters = ref({
   keyword: "",
   type: undefined as string | undefined,
 });
+const appliedFilters = ref({
+  keyword: "",
+  type: undefined as string | undefined,
+});
 
 const filteredTableData = computed(() => {
   return tableData.value.filter((item) => {
-    const matchKeyword = !filters.value.keyword ||
-      item.name?.toLowerCase().includes(filters.value.keyword.toLowerCase());
-    const matchType = !filters.value.type || item.type === filters.value.type;
+    const matchKeyword = !appliedFilters.value.keyword ||
+      item.name?.toLowerCase().includes(appliedFilters.value.keyword.toLowerCase());
+    const matchType = !appliedFilters.value.type || item.type === appliedFilters.value.type;
     return matchKeyword && matchType;
   });
 });
+
+const handleFilterChange = () => {
+  appliedFilters.value = {
+    keyword: filters.value.keyword.trim(),
+    type: filters.value.type,
+  };
+};
 
 const isMaskParam = (param: DataSourceParam) => !!param.mask;
 const isFileParam = (param: DataSourceParam) => String(param.key || "").includes("file_id");
@@ -651,6 +664,19 @@ onMounted(() => {
   flex: 0 0 auto;
 }
 
+.filter-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.search-button {
+  min-width: 96px;
+  white-space: nowrap;
+}
+
 .file-param-field {
   display: flex;
   flex-direction: column;
@@ -708,19 +734,18 @@ onMounted(() => {
     gap: 12px;
   }
 
-  .data-source-container :deep(.filter-bar),
   .data-source-container .left,
   .data-source-container .right {
     width: 100%;
   }
 
-  .data-source-container :deep(.filter-bar .ant-space-item),
-  .data-source-container :deep(.table-operations .ant-space-item) {
-    flex: 1 1 100%;
+  .filter-bar {
+    grid-template-columns: 1fr;
   }
 
   .data-source-container :deep(.filter-bar .ant-input),
   .data-source-container :deep(.filter-bar .ant-select),
+  .data-source-container .search-button,
   .data-source-container :deep(.table-operations .left .ant-btn) {
     width: 100% !important;
   }
