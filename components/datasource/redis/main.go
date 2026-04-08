@@ -37,6 +37,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 			Required:     false,
 			DefaultValue: "",
 			Description:  "Redis password (AUTH). Leave empty if not required.",
+			Mask:         true,
 		},
 		{
 			Key:          "db",

@@ -11,6 +11,41 @@ import (
 	"github.com/BernardSimon/etl-go/server/utils/i18n"
 )
 
+const maskedValue = "****"
+
+// maskSensitiveData 根据数据源类型的 Params.Mask 标记，将敏感字段值替换为 ****
+func maskSensitiveData(dsType string, data types.KeyValues) types.KeyValues {
+	maskSet := make(map[string]bool)
+	if store, err := factory.CreateDataSource(dsType); err == nil {
+		for _, p := range store.Params {
+			if p.Mask {
+				maskSet[p.Key] = true
+			}
+		}
+	}
+	masked := make(types.KeyValues, len(data))
+	for i, kv := range data {
+		masked[i] = kv
+		if maskSet[kv.Key] && kv.Value != "" {
+			masked[i].Value = maskedValue
+		}
+	}
+	return masked
+}
+
+// restoreMaskedFields 将 body.Data 中值为 **** 的敏感字段替换回数据库中的原始值
+func restoreMaskedFields(bodyData types.KeyValues, originalData types.KeyValues) {
+	originalMap := make(map[string]string, len(originalData))
+	for _, kv := range originalData {
+		originalMap[kv.Key] = kv.Value
+	}
+	for i, kv := range bodyData {
+		if kv.Value == maskedValue {
+			bodyData[i].Value = originalMap[kv.Key]
+		}
+	}
+}
+
 
 func GetDataSourceTypeList(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	list := factory.GetDatasourceTypeList()
@@ -50,6 +85,14 @@ func TestDataSource(_ *struct{}, body *types.TestDataSourceRequest, lang string)
 	store, exists := factory.CreateDataSource(body.Type)
 	if exists != nil {
 		return nil, errors.New("invalid Datasource type")
+	}
+
+	// 编辑模式下，若用户未修改密码（值为 ****），从数据库还原真实值
+	if body.ID != "" {
+		var ds model.DataSource
+		if err := model.DB.Where("id = ?", body.ID).First(&ds).Error; err == nil {
+			restoreMaskedFields(body.Data, ds.Data)
+		}
 	}
 
 	config := keyValuesToMap(body.Data)
@@ -110,6 +153,8 @@ func NewDataSource(_ *struct{}, body *types.NewDataSourceRequest, lang string) (
 		if err := model.DB.Where("id = ?", body.ID).First(&existingRecord1).Error; err != nil {
 			return nil, errors.New("illegal command")
 		}
+		// 用户未修改的密码字段值为 ****，还原为数据库中的原始值
+		restoreMaskedFields(body.Data, existingRecord1.Data)
 	}
 	existingRecord1.Data = body.Data
 	existingRecord1.Name = body.Name
@@ -122,12 +167,27 @@ func NewDataSource(_ *struct{}, body *types.NewDataSourceRequest, lang string) (
 
 func GetDataSourceList(_ *struct{}, _ *struct{}, _ string) (interface{}, error) {
 	var dataSourceList []model.DataSource
-	err := model.DB.Select("id", "name", "type", "updated_at", "data").Order("created_at desc").Find(&dataSourceList).Error
+	err := model.DB.Select("id", "name", "type", "updated_at").Order("created_at desc").Find(&dataSourceList).Error
 	if err != nil {
 		return nil, errors.New("failed to get datasource list")
 	}
 	return map[string]interface{}{
 		"list": dataSourceList,
+	}, nil
+}
+
+// GetDataSourceById 返回单个数据源配置，敏感字段（密码等）以 **** 脱敏
+func GetDataSourceById(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
+	var ds model.DataSource
+	if err := model.DB.Where("id = ?", uri.Id).First(&ds).Error; err != nil {
+		return nil, errors.New("datasource not found")
+	}
+	return map[string]interface{}{
+		"id":         ds.ID,
+		"name":       ds.Name,
+		"type":       ds.Type,
+		"updated_at": ds.UpdatedAt,
+		"data":       maskSensitiveData(ds.Type, ds.Data),
 	}, nil
 }
 

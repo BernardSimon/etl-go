@@ -42,6 +42,7 @@ func Register(engine *gin.Engine) {
 	v1.POST("/data-sources/test", AdminAPI(api.TestDataSource, true))
 	v1.GET("/data-sources", AdminAPI(api.GetDataSourceList))
 	v1.GET("/data-sources/types", AdminAPI(api.GetDataSourceTypeList))
+	v1.GET("/data-sources/:id", AdminAPI(api.GetDataSourceById))
 	v1.GET("/data-sources/:id/schema", AdminAPI(api.GetDataSourceSchema))
 	v1.DELETE("/data-sources/:id", AdminAPI(api.DeleteDataSource))
 
@@ -73,6 +74,7 @@ func Register(engine *gin.Engine) {
 
 	// 任务执行记录
 	v1.GET("/task-records", AdminAPI(api.GetTaskRecordList))
+	v1.DELETE("/task-records", AdminAPI(api.CleanTaskRecords))
 	v1.POST("/task-records/:id/cancel", AdminAPI(api.CancelTaskRecord))
 	v1.GET("/task-records/:id/files", AdminAPI(api.GetFileListByTaskRecordID))
 	v1.GET("/task-records/:id/params", AdminAPI(api.GetTaskRecordParams))

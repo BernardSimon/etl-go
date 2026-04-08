@@ -8,4 +8,5 @@ type Params struct {
 	Placeholder  string `json:"placeholder,omitempty"`
 	Example      string `json:"example,omitempty"`
 	Type         string `json:"type,omitempty"`
+	Mask         bool   `json:"mask,omitempty"`
 }

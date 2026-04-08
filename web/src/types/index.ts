@@ -103,4 +103,5 @@ export interface Params {
   placeholder?: string;
   example?: string;
   type?: string;
+  mask?: boolean;
 }

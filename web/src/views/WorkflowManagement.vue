@@ -130,7 +130,6 @@
                   type="default"
                   size="small"
                   class="success-button"
-                  :disabled="record.status === 1"
                   @click="handleRunOnce(record.id)"
               >{{ t('workflow.action.runOnce') }}</a-button
               >

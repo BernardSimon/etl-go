@@ -112,7 +112,9 @@ func middleware(missionID string, runBy string) {
 	if err != nil {
 		mission.ErrMsg = err.Error()
 		if runBy == "system" {
-			cancelMission(&mission, 2)
+			if cancelErr := cancelMission(&mission, 2); cancelErr != nil {
+				zap.L().Error("任务状态更新失败", zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(cancelErr))
+			}
 			zap.L().Error(fmt.Sprintf("任务 %s 执行失败,已自动暂停", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID), zap.Error(err))
 		}
 	} else {
@@ -121,18 +123,28 @@ func middleware(missionID string, runBy string) {
 		zap.L().Info(fmt.Sprintf("任务 %s 执行成功", mission.Name), zap.String("service", "task"), zap.String("name", mission.ID))
 	}
 	mission.IsRunning = false
-	model.DB.Save(&mission)
+	model.DB.Model(&model.Task{}).Where("id = ?", mission.ID).Updates(map[string]interface{}{
+		"is_running":        false,
+		"last_end_time":     mission.LastEndTime,
+		"last_success_time": mission.LastSuccessTime,
+		"err_msg":           mission.ErrMsg,
+	})
 }
 
-func CancelMission(mission *model.Task) {
-	cancelMission(mission, 0)
+func CancelMission(mission *model.Task) error {
+	return cancelMission(mission, 0)
 }
-func cancelMission(mission *model.Task, status int) {
-	mission.Status = status
+
+func cancelMission(mission *model.Task, status int) error {
 	if mission.EntryID != nil {
 		cr.Remove(cron.EntryID(*mission.EntryID))
-		mission.EntryID = nil
 	}
+	mission.Status = status
+	mission.EntryID = nil
+	return model.DB.Model(&model.Task{}).Where("id = ?", mission.ID).Updates(map[string]interface{}{
+		"status":   status,
+		"entry_id": nil,
+	}).Error
 }
 
 func ScheduleMission(mission *model.Task) error {
@@ -148,11 +160,20 @@ func ScheduleMission(mission *model.Task) error {
 	if err != nil {
 		return err
 	}
-	mission.Status = 1
-	mission.IsRunning = false
 	eId := int(EntryID)
+	tx := model.DB.Model(&model.Task{}).
+		Where("id = ? AND status = ?", mission.ID, 1).
+		Update("entry_id", eId)
+	if tx.Error != nil {
+		cr.Remove(cron.EntryID(eId))
+		model.DB.Model(&model.Task{}).Where("id = ?", mission.ID).Update("status", 0)
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		cr.Remove(cron.EntryID(eId))
+		return nil
+	}
 	mission.EntryID = &eId
-	model.DB.Save(mission)
 	return nil
 }
 func RunMissionManual(missionID string) error {

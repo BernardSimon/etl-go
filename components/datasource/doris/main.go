@@ -18,7 +18,7 @@ func SetCustomName(customName string) {
 
 type DataSource struct {
 	Host      string `json:"host"`
-	Port      string `json:"port"`      // HTTP 协议端口（用于 Stream Load 等）
+	Port      string `json:"port"`       // HTTP 协议端口（用于 Stream Load 等）
 	MysqlPort string `json:"mysql_port"` // MySQL 协议端口（用于 SQL 查询 / schema 发现）
 	User      string `json:"user"`
 	Password  string `json:"password"`
@@ -57,6 +57,7 @@ func DatasourceCreator() (string, datasource.Datasource, []params.Params) {
 			Required:     true,
 			DefaultValue: "",
 			Description:  "doris password",
+			Mask:         true,
 		},
 		{
 			Key:          "database",

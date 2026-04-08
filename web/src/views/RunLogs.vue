@@ -58,6 +58,7 @@
             <a-button @click="resetSearch">
               {{ t('runLog.search.reset') }}
             </a-button>
+            <a-button danger @click="openCleanModal">{{ t('runLog.clean.button') }}</a-button>
           </div>
         </div>
       </div>
@@ -210,13 +211,55 @@
       </a-descriptions-item>
     </a-descriptions>
   </a-modal>
+  <a-modal
+    v-model:open="cleanModal.visible"
+    :title="t('runLog.clean.modal.title')"
+    :confirm-loading="cleanModal.loading"
+    :ok-text="t('runLog.clean.ok')"
+    ok-type="danger"
+    :cancel-text="t('runLog.clean.cancel')"
+    @ok="handleClean"
+  >
+    <a-form layout="vertical" style="margin-top: 8px">
+      <a-form-item :label="t('runLog.clean.status.label')">
+        <a-select v-model:value="cleanModal.status" style="width: 100%">
+          <a-select-option :value="-1">{{ t('runLog.clean.status.allFinished') }}</a-select-option>
+          <a-select-option :value="1">{{ t('runLog.clean.status.successOnly') }}</a-select-option>
+          <a-select-option :value="2">{{ t('runLog.clean.status.failedOnly') }}</a-select-option>
+        </a-select>
+      </a-form-item>
+      <a-form-item :label="t('runLog.clean.before.label')">
+        <a-select v-model:value="cleanModal.beforePreset" style="width: 100%" @change="(val: any) => handlePresetChange(val)">
+          <a-select-option value="">{{ t('runLog.clean.before.all') }}</a-select-option>
+          <a-select-option value="7">{{ t('runLog.clean.before.7days') }}</a-select-option>
+          <a-select-option value="30">{{ t('runLog.clean.before.30days') }}</a-select-option>
+          <a-select-option value="90">{{ t('runLog.clean.before.90days') }}</a-select-option>
+          <a-select-option value="custom">{{ t('runLog.clean.before.custom') }}</a-select-option>
+        </a-select>
+      </a-form-item>
+      <a-form-item v-if="cleanModal.beforePreset === 'custom'" :label="t('runLog.clean.before.custom.label')">
+        <a-date-picker
+          v-model:value="cleanModal.beforeDate"
+          style="width: 100%"
+          value-format="YYYY-MM-DD"
+          :disabled-date="(d: any) => d && d.valueOf() > Date.now()"
+        />
+      </a-form-item>
+      <a-alert
+        type="warning"
+        show-icon
+        :message="t('runLog.clean.warning')"
+        style="margin-top: 4px"
+      />
+    </a-form>
+  </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from "vue";
 import { useRoute } from "vue-router";
-import { getTaskRecordList, cancelTaskRecord, getTaskRecordLogs, getTaskRecordParams } from "../api/run_log";
+import { getTaskRecordList, cancelTaskRecord, getTaskRecordLogs, getTaskRecordParams, cleanTaskRecords } from "../api/run_log";
 import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import MissionConfigModal from "../components/MissionConfigModal.vue";
@@ -628,6 +671,59 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
  
+// 清理日志
+const cleanModal = reactive({
+  visible: false,
+  loading: false,
+  status: -1 as number,
+  beforePreset: "" as string,
+  beforeDate: "" as string,
+});
+
+const openCleanModal = () => {
+  cleanModal.status = -1;
+  cleanModal.beforePreset = "30";
+  cleanModal.beforeDate = "";
+  cleanModal.visible = true;
+};
+
+const handlePresetChange = (val: any) => {
+  if (val !== "custom") {
+    cleanModal.beforeDate = "";
+  }
+};
+
+const handleClean = async () => {
+  const params: { status?: number; before?: string } = {};
+  if (cleanModal.status !== -1) {
+    params.status = cleanModal.status;
+  }
+  if (cleanModal.beforePreset === "custom") {
+    if (!cleanModal.beforeDate) {
+      message.warning(t("runLog.clean.missingDate"));
+      return;
+    }
+    params.before = cleanModal.beforeDate;
+  } else if (cleanModal.beforePreset !== "") {
+    const d = new Date();
+    d.setDate(d.getDate() - Number(cleanModal.beforePreset));
+    params.before = d.toISOString().slice(0, 10);
+  }
+  cleanModal.loading = true;
+  try {
+    const res = await cleanTaskRecords(params);
+    if (res && res.code === 0) {
+      message.success(t("runLog.clean.success", { count: res.data?.deleted ?? 0 }));
+      cleanModal.visible = false;
+      fetchData();
+    }
+  } catch (e) {
+    console.error("清理失败", e);
+  } finally {
+    cleanModal.loading = false;
+  }
+};
+
 onMounted(() => {
   searchForm.task_id = String(route.query.task_id || "");
   searchForm.mission_name = String(route.query.mission_name || "");

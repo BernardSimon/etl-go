@@ -159,7 +159,7 @@
         >
           Powered by ETL-GO
         </a>
-        <span class="text-gray-400"> · v0.2.6</span>
+        <span class="text-gray-400"> · v0.2.7</span>
       </a-layout-footer>
     </a-layout>
   </a-layout>

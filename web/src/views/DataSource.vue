@@ -158,6 +158,11 @@
               </div>
             </div>
           </template>
+          <a-input-password
+              v-else-if="isMaskParam(param)"
+              v-model:value="param.value"
+              :placeholder="param.placeholder || param.description || t('datasource.param.placeholder', { param: param.key })"
+          />
           <a-input
               v-else
               v-model:value="param.value"
@@ -207,6 +212,7 @@ import {
   getDataSourceTypeList,
   addDataSource,
   getDataSourceList,
+  getDataSourceById,
   testDataSource,
   deleteDataSource,
 } from "../api/datasource.ts";
@@ -234,6 +240,7 @@ interface DataSourceParam {
   placeholder?: string;
   example?: string;
   type?: string;
+  mask?: boolean;
 }
 
 // interface DataSourceForm {
@@ -287,6 +294,7 @@ const filteredTableData = computed(() => {
   });
 });
 
+const isMaskParam = (param: DataSourceParam) => !!param.mask;
 const isFileParam = (param: DataSourceParam) => String(param.key || "").includes("file_id");
 const isMultiFileParam = (param: DataSourceParam) => String(param.key || "").includes("file_ids");
 const parseFileIds = (value: string) =>
@@ -459,6 +467,7 @@ const onDatasourceTypeChange = (value: SelectValue) => {
       placeholder: param.placeholder,
       example: param.example,
       type: param.type,
+      mask: param.mask || false,
     }));
   } else {
     form.data = [];
@@ -522,6 +531,7 @@ const handleTestDataSource = () => {
         testing.value = true;
         const form = addDataSourceDialog.value.form;
         return testDataSource({
+          id: form.id,
           type: form.type,
           data: form.data.map((item) => ({
             key: item.key,
@@ -539,47 +549,57 @@ const handleTestDataSource = () => {
       });
 };
 
-// 编辑数据源
-const handleEdit = (row: any) => {
-  resetForm();
+// 根据 id 加载数据源配置并填充表单（敏感字段后端已脱敏为 ****）
+const loadDataSourceIntoForm = async (id: string, type: string) => {
+  const res = await getDataSourceById(id);
+  if (res.code !== 0) return;
+  const remoteData: {key: string; value: string}[] = res.data.data || [];
+  const remoteMap = new Map(remoteData.map(d => [d.key, d.value]));
 
-  addDataSourceDialog.value.show = true;
-  addDataSourceDialog.value.title = t("datasource.edit.title");
-  addDataSourceDialog.value.isEdit = true;
-
-  // 填充基础信息
-  const form = addDataSourceDialog.value.form;
-  form.id = row.id;
-  form.name = row.name;
-  form.type = row.type;
-
-  // 获取对应类型的参数定义
-  const selectedType = dataSourceTypeList.value.find(item => item.type === row.type);
+  const selectedType = dataSourceTypeList.value.find(item => item.type === type);
   if (selectedType) {
-    // 根据类型定义和已有数据构建表单数据
-    form.data = selectedType.params.map(param => {
-      const existingData = row.data?.find((d: any) => d.key === param.key);
-      return {
-        key: param.key,
-        value: existingData ? existingData.value : (param.defaultValue || ""),
-        description: param.description,
-        required: param.required || false,
-        defaultValue: param.defaultValue,
-        placeholder: param.placeholder,
-        example: param.example,
-        type: param.type,
-      };
-    });
+    addDataSourceDialog.value.form.data = selectedType.params.map(param => ({
+      key: param.key,
+      value: remoteMap.has(param.key) ? remoteMap.get(param.key)! : (param.defaultValue || ""),
+      description: param.description,
+      required: param.required || false,
+      defaultValue: param.defaultValue,
+      placeholder: param.placeholder,
+      example: param.example,
+      type: param.type,
+      mask: param.mask || false,
+    }));
   }
   refreshSelectedFilesFromForm();
 };
 
-const handleClone = (row: any) => {
-  handleEdit(row);
-  addDataSourceDialog.value.isEdit = false;
+// 编辑数据源
+const handleEdit = async (row: any) => {
+  resetForm();
+  addDataSourceDialog.value.show = true;
+  addDataSourceDialog.value.title = t("datasource.edit.title");
+  addDataSourceDialog.value.isEdit = true;
+  const form = addDataSourceDialog.value.form;
+  form.id = row.id;
+  form.name = row.name;
+  form.type = row.type;
+  await loadDataSourceIntoForm(row.id, row.type);
+};
+
+const handleClone = async (row: any) => {
+  resetForm();
+  addDataSourceDialog.value.show = true;
   addDataSourceDialog.value.title = t("datasource.clone.title");
-  addDataSourceDialog.value.form.id = undefined;
-  addDataSourceDialog.value.form.name = `${row.name}-${t("datasource.clone.suffix")}`;
+  addDataSourceDialog.value.isEdit = false;
+  const form = addDataSourceDialog.value.form;
+  form.id = undefined;
+  form.name = `${row.name}-${t("datasource.clone.suffix")}`;
+  form.type = row.type;
+  await loadDataSourceIntoForm(row.id, row.type);
+  // 克隆时清空敏感字段，要求重新填写
+  form.data.forEach(param => {
+    if (param.mask) param.value = "";
+  });
 };
 
 // 删除数据源

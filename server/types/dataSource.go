@@ -11,6 +11,7 @@ type NewDataSourceRequest struct {
 }
 
 type TestDataSourceRequest struct {
+	ID   string    `json:"id"`
 	Type string    `json:"type" binding:"required"`
 	Data KeyValues `json:"data" binding:"required"`
 }
