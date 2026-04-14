@@ -16,6 +16,7 @@ export const layoutRoute: RouteRecordRaw = {
       component: () => import("../../views/DataSource.vue"),
       meta: {
         title: "router.datasource",
+        description: "page.datasource.description",
         requiresAuth: true,
       },
     },
@@ -25,6 +26,7 @@ export const layoutRoute: RouteRecordRaw = {
       component: () => import("../../views/SystemVariables.vue"),
       meta: {
         title: "router.systemVariable",
+        description: "page.variable.description",
         requiresAuth: true, // 需要登录权限
       },
     },
@@ -34,6 +36,7 @@ export const layoutRoute: RouteRecordRaw = {
       component: () => import("../../views/WorkflowManagement.vue"),
       meta: {
         title: "router.task",
+        description: "page.workflow.description",
         requiresAuth: true, // 需要登录权限
       },
     },
@@ -43,6 +46,7 @@ export const layoutRoute: RouteRecordRaw = {
       component: () => import("../../views/RunLogs.vue"),
       meta: {
         title: "router.runLog",
+        description: "page.runlog.description",
         requiresAuth: true, // 需要登录权限
       },
     },
@@ -52,6 +56,7 @@ export const layoutRoute: RouteRecordRaw = {
       component: () => import("../../views/file.vue"),
       meta: {
         title: "router.file",
+        description: "page.file.description",
         requiresAuth: true, // 需要登录权限
       },
     },

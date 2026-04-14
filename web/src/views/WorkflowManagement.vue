@@ -1,71 +1,66 @@
 <template>
-  <div class="workflow-container">
-    <a-card :bordered="false" class="main-card">
-      <div class="table-operations">
-        <div class="left">
-          <a-space>
-          <a-button type="primary" @click="handleAdd">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            {{ t('workflow.add.button') }}
-          </a-button>
-          <a-button type="default" @click="handleAddManual">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            {{ t('workflow.addManual.button') }}
-          </a-button>
-          <a-button type="default" @click="templateModal.visible = true">
-            {{ t('workflow.template.useButton') }}
-          </a-button>
-          </a-space>
+  <PageContainer>
+    <ContentCard>
+      <div class="section-stack">
+        <div class="table-toolbar">
+          <div class="table-toolbar__right">
+            <a-button @click="fetchData">
+              <template #icon><ReloadOutlined /></template>
+              {{ t('common.refresh') }}
+            </a-button>
+            <a-button type="default" @click="templateModal.visible = true">
+              {{ t('workflow.template.useButton') }}
+            </a-button>
+            <a-button type="default" @click="handleAddManual">
+              <template #icon><PlusOutlined /></template>
+              {{ t('workflow.addManual.button') }}
+            </a-button>
+            <a-button type="primary" @click="handleAdd">
+              <template #icon><PlusOutlined /></template>
+              {{ t('workflow.add.button') }}
+            </a-button>
+          </div>
         </div>
 
-        <div class="right">
-          <a-button
-            class="refresh-button"
-            shape="circle"
-            :title="t('common.refresh')"
-            :aria-label="t('common.refresh')"
-            @click="fetchData"
-          >
-            <template #icon>
-              <ReloadOutlined />
-            </template>
-          </a-button>
-        </div>
-      </div>
-
-      <div class="workflow-toolbar">
-        <div class="filter-bar">
-          <a-input
-            v-model:value="filters.keyword"
-            :placeholder="t('workflow.search.keyword')"
-            allow-clear
-            @pressEnter="handleFilterChange"
-          />
-          <a-select
-            v-model:value="filters.status"
-            :placeholder="t('workflow.search.status')"
-            allow-clear
-          >
-            <a-select-option :value="0">{{ t('workflow.status.paused') }}</a-select-option>
-            <a-select-option :value="1">{{ t('workflow.status.scheduling') }}</a-select-option>
-            <a-select-option :value="2">{{ t('workflow.status.error') }}</a-select-option>
-          </a-select>
-          <a-select
-            v-model:value="filters.taskType"
-            :placeholder="t('workflow.search.taskType')"
-            allow-clear
-          >
-            <a-select-option value="scheduled">{{ t('workflow.taskType.scheduled') }}</a-select-option>
-            <a-select-option value="manual">{{ t('workflow.taskType.manual') }}</a-select-option>
-          </a-select>
-          <a-button type="primary" class="search-button" @click="handleFilterChange">
-            {{ t('common.search') }}
-          </a-button>
-        </div>
+        <FilterBar>
+          <div class="filter-field workflow-filter workflow-filter--wide">
+            <span class="filter-field__label">{{ t('workflow.table.column.missionName') }}</span>
+            <a-input
+              v-model:value="filters.keyword"
+              :placeholder="t('workflow.search.keyword')"
+              allow-clear
+              @pressEnter="handleFilterChange"
+            />
+          </div>
+          <div class="filter-field workflow-filter">
+            <span class="filter-field__label">{{ t('workflow.table.column.status') }}</span>
+            <a-select
+              v-model:value="filters.status"
+              :placeholder="t('workflow.search.status')"
+              allow-clear
+            >
+              <a-select-option :value="0">{{ t('workflow.status.paused') }}</a-select-option>
+              <a-select-option :value="1">{{ t('workflow.status.scheduling') }}</a-select-option>
+              <a-select-option :value="2">{{ t('workflow.status.error') }}</a-select-option>
+            </a-select>
+          </div>
+          <div class="filter-field workflow-filter">
+            <span class="filter-field__label">{{ t('workflow.search.taskType') }}</span>
+            <a-select
+              v-model:value="filters.taskType"
+              :placeholder="t('workflow.search.taskType')"
+              allow-clear
+            >
+              <a-select-option value="scheduled">{{ t('workflow.taskType.scheduled') }}</a-select-option>
+              <a-select-option value="manual">{{ t('workflow.taskType.manual') }}</a-select-option>
+            </a-select>
+          </div>
+          <div class="filter-field filter-field--actions">
+            <a-button @click="handleFilterChange">
+              {{ t('common.search') }}
+            </a-button>
+          </div>
+        </FilterBar>
 
         <div class="batch-bar">
           <div class="batch-actions">
@@ -83,21 +78,44 @@
             {{ t('workflow.batch.selected', { count: selectedRowKeys.length }) }}
           </span>
         </div>
-      </div>
 
-      <a-table
+        <a-table
+          class="app-shell-table"
           :columns="getColumns()"
           :data-source="tableData"
           :row-selection="rowSelection"
           row-key="id"
           :loading="loading"
           :pagination="pagination"
-          :scroll="{ y: 'calc(100vh - 470px)', x: 'max-content' }"
+          :scroll="{ x: 'max-content' }"
           :locale="{ emptyText: loadError ? t('common.loadFailed') : t('common.empty') }"
           @change="handleTableChange"
-      >
+        >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
+          <template v-if="column.key === 'status'">
+            <span
+              class="status-pill"
+              :class="{
+                'status-pill--success': record.status === 1,
+                'status-pill--danger': record.status === 2,
+                'status-pill--warning': record.status === 0,
+              }"
+            >
+              {{
+                record.status === 1
+                  ? t('workflow.status.scheduling')
+                  : record.status === 2
+                    ? t('workflow.status.error')
+                    : t('workflow.status.paused')
+              }}
+            </span>
+          </template>
+          <template v-else-if="column.key === 'err_msg'">
+            <a-tooltip :title="record.err_msg || '-'">
+              <span class="workflow-ellipsis">{{ formatExecutionMessage(record.err_msg) }}</span>
+            </a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'action'">
             <a-space>
               <a-button
                   type="primary"
@@ -143,8 +161,9 @@
             </a-space>
           </template>
         </template>
-      </a-table>
-    </a-card>
+        </a-table>
+      </div>
+    </ContentCard>
 
     <!-- 新增或编辑弹窗 -->
     <MissionConfigModal
@@ -212,7 +231,7 @@
         </template>
       </a-table>
     </a-modal>
-  </div>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -245,6 +264,10 @@ const handleResize = () => {
 
 const loading = ref(false);
 const loadError = ref(false);
+const formatExecutionMessage = (value?: string) => {
+  if (!value) return "-";
+  return value.length > 48 ? `${value.slice(0, 48)}...` : value;
+};
 const filters = ref({
   keyword: "",
   status: undefined as number | undefined,
@@ -299,6 +322,7 @@ const getColumns = (): any[] => [
     dataIndex: "err_msg",
     key: "err_msg",
     align: "center",
+    width: 260,
   },
   {
     title: t('workflow.table.column.lastEndTime'),
@@ -683,43 +707,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.workflow-container {
-  padding: 20px;
-
-  .main-card {
-    border-radius: 4px;
-  }
-
-  .table-operations {
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-  }
+.table-toolbar {
+  margin-bottom: -4px;
 }
 
-.workflow-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+.table-toolbar__right {
+  margin-left: auto;
 }
 
-.filter-bar {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) repeat(2, minmax(160px, 1fr)) auto;
-  gap: 12px;
-  align-items: center;
+.workflow-filter {
+  width: 210px;
 }
 
-.refresh-button {
-  flex: 0 0 auto;
-}
-
-.search-button {
-  min-width: 96px;
-  white-space: nowrap;
+.workflow-filter--wide {
+  width: 320px;
 }
 
 .batch-bar {
@@ -736,57 +737,33 @@ onUnmounted(() => {
 }
 
 .selection-hint {
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 14px;
   white-space: nowrap;
 }
 
+.workflow-ellipsis {
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 @media (max-width: 768px) {
-  .workflow-container {
-    padding: 12px;
-  }
-
-  .workflow-container .table-operations {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .workflow-container .left,
-  .workflow-container .right {
-    width: 100%;
-  }
-
-  .filter-bar {
-    grid-template-columns: 1fr;
-  }
-
   .batch-bar,
   .batch-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .workflow-container :deep(.filter-bar .ant-input),
-  .workflow-container :deep(.filter-bar .ant-select),
-  .workflow-container :deep(.table-operations .left .ant-btn),
-  .batch-actions :deep(.ant-btn) {
-    width: 100% !important;
+  .workflow-filter {
+    width: 190px;
   }
 
-  .workflow-container .right {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .workflow-container .refresh-button {
-    width: 32px !important;
-    min-width: 32px;
-    height: 32px;
-    padding: 0;
-  }
-
-  .workflow-container .search-button {
-    width: 100%;
+  .workflow-filter--wide {
+    width: 260px;
   }
 
   .selection-hint {

@@ -1,484 +1,502 @@
 <template>
-  <a-layout style="min-height: 100vh">
-    <a-layout-sider v-model:collapsed="collapsed" :width="200" class="sider">
-      <div class="logo">
-        <div v-if="!collapsed" class="logo-text">ETL-GO</div>
-        <div v-else class="logo-text-mini">ETL</div>
+  <div class="app-layout" :class="{ 'app-layout--dark': preferencesStore.isDark }">
+    <aside v-if="!isMobile" class="app-sidebar app-ghost" :class="{ 'app-sidebar--collapsed': collapsed }">
+      <div class="app-sidebar__brand">
+        <div class="app-sidebar__mark">ETL</div>
+        <div v-if="!collapsed" class="app-sidebar__copy">
+          <strong>ETL-GO</strong>
+        </div>
       </div>
-      <a-menu
-        v-model:selectedKeys="selectedKeys"
-        v-model:openKeys="openKeys"
-        theme="dark"
-        mode="inline"
-      >
-        <template v-for="item in sidebarItems" :key="item.index">
-          <template v-if="!item.children">
-            <a-menu-item :key="item.index" @click="navigateTo(item.index)">
-              <template #icon>
-                <component :is="item.icon" />
-              </template>
-              <span>{{ $t(item.title) }}</span>
-            </a-menu-item>
+
+      <nav class="app-sidebar__nav">
+        <button
+          v-for="item in sidebarItems"
+          :key="item.index"
+          type="button"
+          class="app-nav-item"
+          :class="{ 'app-nav-item--active': route.path === item.index }"
+          @click="navigateTo(item.index)"
+        >
+          <component :is="item.icon" class="app-nav-item__icon" />
+          <div v-if="!collapsed" class="app-nav-item__copy">
+            <span>{{ t(item.title) }}</span>
+          </div>
+        </button>
+      </nav>
+
+      <div class="app-sidebar__footer" :class="{ 'app-sidebar__footer--compact': collapsed }">
+        <a-button
+          type="text"
+          class="app-sidebar__collapse"
+          :aria-label="t('layout.toggleSidebar')"
+          @click="toggleCollapsed"
+        >
+          <template #icon>
+            <MenuUnfoldOutlined v-if="collapsed" />
+            <MenuFoldOutlined v-else />
           </template>
-          <template v-else>
-            <a-sub-menu :key="item.index">
-              <template #title>
-                <span>
-                  <component :is="item.icon" />
-                  <span>{{ $t(item.title) }}</span>
-                </span>
-              </template>
-              <a-menu-item
-                v-for="child in item.children"
-                :key="child.index"
-                @click="navigateTo(child.index)"
-              >
-                <template #icon>
-                  <component :is="child.icon" />
-                </template>
-                <span>{{ t(child.title) }}</span>
-              </a-menu-item>
-            </a-sub-menu>
-          </template>
-        </template>
-      </a-menu>
-    </a-layout-sider>
-    <a-layout>
-      <a-layout-header class="layout-header">
-        <div class="header-left">
-          <a-button
-            type="text"
-            shape="circle"
-            class="trigger-button"
-            :title="t('layout.toggleSidebar')"
-            :aria-label="t('layout.toggleSidebar')"
-            @click="() => (collapsed = !collapsed)"
+        </a-button>
+      </div>
+    </aside>
+
+    <a-drawer
+      :open="mobileMenuOpen"
+      placement="left"
+      width="300"
+      class="app-mobile-drawer"
+      @close="mobileMenuOpen = false"
+    >
+      <div class="app-mobile-drawer__body">
+        <div class="app-sidebar__brand app-sidebar__brand--mobile">
+          <div class="app-sidebar__mark">ETL</div>
+          <div class="app-sidebar__copy">
+            <strong>ETL-GO</strong>
+          </div>
+        </div>
+        <nav class="app-sidebar__nav">
+          <button
+            v-for="item in sidebarItems"
+            :key="item.index"
+            type="button"
+            class="app-nav-item"
+            :class="{ 'app-nav-item--active': route.path === item.index }"
+            @click="navigateWithClose(item.index)"
           >
+            <component :is="item.icon" class="app-nav-item__icon" />
+            <div class="app-nav-item__copy">
+              <span>{{ t(item.title) }}</span>
+            </div>
+          </button>
+        </nav>
+      </div>
+    </a-drawer>
+
+    <main class="app-main">
+      <header class="app-topbar app-ghost">
+        <div class="app-topbar__left">
+          <a-button v-if="isMobile" type="text" class="app-topbar__menu" @click="mobileMenuOpen = true">
             <template #icon>
-              <menu-unfold-outlined v-if="collapsed" class="trigger" />
-              <menu-fold-outlined v-else class="trigger" />
+              <MenuUnfoldOutlined />
             </template>
           </a-button>
-
-          <!-- 面包屑 -->
-          <a-breadcrumb class="breadcrumb">
-            <a-breadcrumb-item>{{$t("layout.home")}}</a-breadcrumb-item>
-            <a-breadcrumb-item
-              v-for="(item, index) in breadcrumbs"
-              :key="index"
-            >
-              {{ $t(item) }}
-            </a-breadcrumb-item>
-          </a-breadcrumb>
-        </div>
-        <!-- 右侧操作区：操作手册 + 用户下拉菜单 -->
-      <div class="header-right">
-        <!-- 切换语言菜单 -->
-        <a-dropdown>
-          <div
-            class="language"
-            role="button"
-            tabindex="0"
-            :aria-label="t('layout.language')"
-          >
-            <span class="currentLanguage">{{ t("layout.language") }}</span>
+          <div v-if="!isMobile" class="app-topbar__headline">
+            <span class="app-topbar__label">{{ t("layout.currentPage") }}</span>
+            <h2>{{ title }}</h2>
           </div>
-          <template #overlay>
-            <a-menu @click="handleLanguageClick">
-              <a-menu-item key="zh">
-                {{ t("layout.language.zh") }}
-              </a-menu-item>
-              <a-menu-item key="en">
-                {{ t("layout.language.en") }}
-              </a-menu-item>
-            </a-menu>
-          </template>
-        </a-dropdown>
-          <!-- 用户下拉菜单 -->
+        </div>
+
+        <div class="app-topbar__right">
+          <a-segmented
+            v-model:value="preferencesStore.theme"
+            :options="themeOptions"
+            size="small"
+          />
+
           <a-dropdown>
-            <div
-              class="user-info"
-              role="button"
-              tabindex="0"
-              :aria-label="t('layout.userMenu')"
-            >
-              <a-avatar :size="32">
-                <template #icon><UserOutlined /></template>
-              </a-avatar>
-              <span class="username">{{ t("layout.username") }}</span>
-            </div>
+            <a-button class="app-toolbar-button" size="small">
+              <template #icon><GlobalOutlined /></template>
+              {{ currentLanguageLabel }}
+            </a-button>
+            <template #overlay>
+              <a-menu @click="handleLanguageClick">
+                <a-menu-item key="zh">{{ t("layout.language.zh") }}</a-menu-item>
+                <a-menu-item key="en">{{ t("layout.language.en") }}</a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
+
+          <a-dropdown>
+            <button class="app-user-chip" type="button">
+              <span class="app-user-chip__avatar">
+                <UserOutlined />
+              </span>
+              <span class="app-user-chip__name">{{ t("layout.username") }}</span>
+            </button>
             <template #overlay>
               <a-menu @click="handleMenuClick">
                 <a-menu-item key="refresh">
                   <ReloadOutlined />
-                  {{ $t("layout.refreshBaseData") }}
+                  {{ t("layout.refreshBaseData") }}
                 </a-menu-item>
                 <a-menu-divider />
                 <a-menu-item key="logout">
                   <LogoutOutlined />
-                  {{ $t("layout.logout") }}
+                  {{ t("layout.logout") }}
                 </a-menu-item>
               </a-menu>
             </template>
           </a-dropdown>
         </div>
-      </a-layout-header>
+      </header>
 
-      <!-- 标签页视图 -->
-      <div class="tabs-view-container">
-        <a-tabs
-          v-model:activeKey="activeTabKey"
-          type="editable-card"
-          hide-add
-          size="small"
-          @edit="onTabEdit"
-          @change="onTabChange"
-          class="layout-tabs"
-        >
-          <a-tab-pane
-            v-for="pane in panes"
-            :key="pane.key"
-            :tab="$t(pane.title)"
-            :closable="pane.closable"
-          />
-        </a-tabs>
-      </div>
-
-      <a-layout-content class="layout-content">
+      <div class="app-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
           </transition>
         </router-view>
-      </a-layout-content>
-      <a-layout-footer class="text-center text-xs py-4">
-        <a
-          class="cursor-pointer text-gray-400"
-          href="https://github.com/BernardSimon/etl-go"
-          target="_blank"
-        >
-          Powered by ETL-GO
+      </div>
+
+      <footer class="app-footer">
+        <a href="https://github.com/BernardSimon/etl-go" target="_blank" rel="noreferrer">
+          Powered by ETL-GO · v0.2.8
         </a>
-        <span class="text-gray-400"> · v0.2.8</span>
-      </a-layout-footer>
-    </a-layout>
-  </a-layout>
+      </footer>
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useUserStore } from "../stores/user";
-import { Modal, message } from "ant-design-vue";
-import { useI18n } from "vue-i18n"
-const { t } = useI18n()
+import { message, Modal } from "ant-design-vue";
 import {
-  UserOutlined,
+  GlobalOutlined,
   LogoutOutlined,
-  ReloadOutlined,
-  MenuUnfoldOutlined,
   MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  ReloadOutlined,
+  UserOutlined,
 } from "@ant-design/icons-vue";
+import { useI18n } from "vue-i18n";
 import { getDataSourceTypeList } from "../api/datasource";
 import { getTypeByComponent } from "../api/mission";
+import { useResponsive } from "../composables/useResponsive";
+import { usePreferencesStore } from "../stores/preferences";
+import { useUserStore } from "../stores/user";
 import { sidebarItems } from "./sidebarItems";
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+const preferencesStore = usePreferencesStore();
+const { isMobile } = useResponsive();
+const { t } = useI18n();
 
-const collapsed = ref(false);
-const selectedKeys = ref<string[]>([]);
-const openKeys = ref<string[]>([]);
-
-// 面包屑
-const breadcrumbs = computed(() => {
-  const matched = findMenuPath(route.path, sidebarItems);
-  return matched ? matched.map((m) => m.title) : [];
+const mobileMenuOpen = ref(false);
+const title = computed(() => {
+  const current = sidebarItems.find((item) => item.index === route.path);
+  return current ? t(current.title) : t("layout.home");
 });
 
-// 标签页
-interface TabPane {
-  title: string;
-  key: string;
-  closable?: boolean;
-  path: string;
-}
+const collapsed = computed(() => preferencesStore.sidebarCollapsed && !isMobile.value);
+const currentLanguageLabel = computed(() =>
+  userStore.language === "zh" ? t("layout.language.zh") : t("layout.language.en")
+);
 
-const activeTabKey = ref("");
-const panes = ref<TabPane[]>([
-  { title: "router.datasource", key: "/datasource", path: "/datasource", closable: false }, // 默认标签页
+const themeOptions = computed(() => [
+  { label: t("layout.theme.light"), value: "light" },
+  { label: t("layout.theme.dark"), value: "dark" },
 ]);
 
-// 导航
 const navigateTo = (path: string) => {
   router.push(path);
 };
 
-// 查找菜单路径用于面包屑和展开的菜单
-const findMenuPath = (
-  path: string,
-  items: any[],
-  parentPath: any[] = []
-): any[] | null => {
-  for (const item of items) {
-    if (item.index === path) {
-      return [...parentPath, item];
-    }
-    if (item.children) {
-      const found = findMenuPath(path, item.children, [...parentPath, item]);
-      if (found) return found;
-    }
-  }
-  return null;
+const navigateWithClose = (path: string) => {
+  mobileMenuOpen.value = false;
+  navigateTo(path);
 };
 
-// 添加标签页
-const addTab = (path: string) => {
-  const title = (route.meta.title as string) || "common.unknown";
-  const existing = panes.value.find((p) => p.key === path);
-  if (!existing) {
-    panes.value.push({
-      title,
-      key: path,
-      path,
-      closable: true,
-    });
-  }
-  activeTabKey.value = path;
+const toggleCollapsed = () => {
+  preferencesStore.setSidebarCollapsed(!preferencesStore.sidebarCollapsed);
 };
 
-// 删除标签页
-const removeTab = (targetKey: string) => {
-  let lastIndex = -1;
-  panes.value.forEach((pane, i) => {
-    if (pane.key === targetKey) {
-      lastIndex = i - 1;
-    }
-  });
-
-  const panesKeep = panes.value.filter((pane) => pane.key !== targetKey);
-  if (panesKeep.length && activeTabKey.value === targetKey) {
-    if (lastIndex >= 0) {
-      activeTabKey.value = panesKeep[lastIndex].key;
-    } else {
-      activeTabKey.value = panesKeep[0].key;
-    }
-    router.push(activeTabKey.value);
-  }
-  panes.value = panesKeep;
-};
-
-// 标签页变化
-const onTabChange = (key: any) => {
-  router.push(key as string);
-};
-
-// 标签页编辑
-const onTabEdit = (targetKey: any, action: "add" | "remove") => {
-  if (action === "remove") {
-    removeTab(targetKey as string);
-  }
-};
-
-// 同步菜单状态与路由
 watch(
-  () => route.path,
-  (newPath) => {
-    selectedKeys.value = [newPath];
-
-    // 自动展开子菜单
-    const matched = findMenuPath(newPath, sidebarItems);
-    if (matched && matched.length > 1) {
-      const parent = matched[0];
-      if (!openKeys.value.includes(parent.index)) {
-        openKeys.value.push(parent.index);
-      }
+  isMobile,
+  (value) => {
+    if (value) {
+      mobileMenuOpen.value = false;
     }
-
-    // 添加标签页
-    addTab(newPath);
   },
   { immediate: true }
 );
 
-// 用户菜单
-const handleMenuClick = async (e: any) => {
-  if (e.key === "refresh") {
-    await Promise.all([
-      getDataSourceTypeList(true),
-      getTypeByComponent(true),
-    ]);
-    message.success(t("layout.refreshBaseData.success"));
+const handleLanguageClick = async (e: { key: string | number }) => {
+  const key = String(e.key);
+  if (key === "zh" || key === "en") {
+    userStore.changeLanguage(key);
   }
-  if (e.key === "logout") {
+};
+
+const handleMenuClick = async (e: { key: string | number }) => {
+  const key = String(e.key);
+  if (key === "theme") {
+    preferencesStore.toggleTheme();
+    return;
+  }
+
+  if (key === "refresh") {
+    await Promise.all([getDataSourceTypeList(true), getTypeByComponent(true)]);
+    message.success(t("layout.refreshBaseData.success"));
+    return;
+  }
+
+  if (key === "logout") {
     Modal.confirm({
-      title:  t("layout.logout.title"),
-      content:  t("layout.logout.content"),
+      title: t("layout.logout.title"),
+      content: t("layout.logout.content"),
       onOk: async () => {
-        await userStore.logout();
-        router.push("/login");
+        userStore.logout();
+        await router.push("/login");
       },
     });
   }
 };
-
-// 语言切换
-const handleLanguageClick = async (e: any) => {
-  if (e.key === "zh") {
-    userStore.changeLanguage("zh");
-  }
-  if (e.key === "en") {
-    userStore.changeLanguage("en");
-  }
-
-};
 </script>
 
 <style scoped lang="scss">
-.logo {
-  height: 64px;
+.app-layout {
+  min-height: 100vh;
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 40px);
+  width: 200px;
+  padding: 18px;
+  border-radius: var(--app-radius-xl);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  transition: width 0.25s ease;
+}
+
+.app-sidebar--collapsed {
+  width: 100px;
+}
+
+.app-sidebar__brand {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 6px 18px;
+}
+
+.app-sidebar__brand--mobile {
+  padding-inline: 0;
+}
+
+.app-sidebar__mark {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--app-radius-md);
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--app-primary), #79b2ff);
+  color: white;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.app-sidebar__copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-sidebar__copy strong {
+  font-size: 18px;
+}
+
+.app-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--app-text);
   display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--app-radius-md);
+  transition: all 0.2s ease;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-nav-item:hover,
+.app-nav-item--active {
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
+.app-nav-item__icon {
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.app-nav-item__copy {
+  min-width: 0;
+}
+
+.app-nav-item__copy span {
+  font-weight: 700;
+}
+
+.app-sidebar__footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-sidebar__footer--compact {
   justify-content: center;
-  background: #002140;
-  color: #fff;
-  font-size: 20px;
-  font-weight: bold;
-  overflow: hidden;
-  transition: all 0.3s;
-
-  .logo-text {
-    white-space: nowrap;
-  }
-
-  .logo-text-mini {
-    font-size: 18px;
-  }
 }
 
-.layout-header {
-  background: #fff;
-  padding: 0 20px;
+.app-sidebar__collapse {
+  color: var(--app-text) !important;
+}
+
+.app-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: calc(100vh - 40px);
+  overflow: hidden;
+}
+
+.app-topbar {
+  border-radius: var(--app-radius-xl);
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-topbar__left,
+.app-topbar__right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
-  z-index: 1;
-  height: 64px;
-  line-height: 64px;
-
-  .header-left {
-    display: flex;
-    align-items: center;
-
-    .trigger {
-      font-size: 18px;
-      transition: color 0.3s;
-
-      &:hover {
-        color: #1890ff;
-      }
-    }
-
-    .breadcrumb {
-      display: inline-block;
-    }
-  }
-  .header-right{
-    display: flex;
-    align-items: center;
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      margin-left: 20px;
-
-      .username {
-        margin-left: 8px;
-        color: rgba(0, 0, 0, 0.65);
-      }
-    }
-  }
-
+  gap: 10px;
 }
 
-.trigger-button {
-  margin-right: 8px;
+
+.app-topbar__headline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
-.sider-version {
-  text-align: center;
-  color: rgba(255, 255, 255, 0.3);
+.app-topbar__label {
   font-size: 11px;
-  padding: 12px 0 8px;
-  letter-spacing: 0.5px;
-
-  &--collapsed {
-    font-size: 10px;
-  }
+  color: var(--app-text-faint);
+  letter-spacing: 0.04em;
 }
 
-.tabs-view-container {
-  padding: 6px 16px 0;
-  background: #fff;
-  border-top: 1px solid #f0f0f0;
-
-  :deep(.ant-tabs-nav) {
-    margin-bottom: 0;
-  }
+.app-topbar__headline h2 {
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
-.layout-content {
-  margin: 16px;
-  background: #fff;
-  min-height: 280px;
-  overflow-y: auto;
-  border-radius: 6px;
-  // padding: 24px; // 内容填充通常由页面本身或这里处理
+.app-topbar__menu,
+.app-toolbar-button,
+.app-user-chip {
+  border-radius: 999px;
+}
+
+.app-toolbar-button {
+  font-size: 12px;
+}
+
+.app-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
+  padding: 5px 12px 5px 5px;
+  min-width: 0;
+  cursor: pointer;
+  color: var(--app-text);
+  transition: background 0.15s ease;
+}
+
+.app-user-chip:hover {
+  background: var(--app-primary-soft);
+  border-color: var(--app-primary);
+  color: var(--app-primary);
+}
+
+.app-user-chip__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--app-radius-sm);
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--app-primary), #79b2ff);
+  color: white;
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.app-user-chip__name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-content {
+  min-width: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--app-text-faint);
+  font-size: 12px;
+  padding: 0 4px 4px;
 }
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+  transform: translateY(8px);
 }
 
-@media (max-width: 768px) {
-  .layout-header {
-    height: auto;
-    min-height: 64px;
-    padding: 8px 12px;
-    line-height: 1.4;
-    flex-wrap: wrap;
+.app-mobile-drawer :deep(.ant-drawer-body) {
+  padding: 0;
+}
+
+.app-mobile-drawer__body {
+  padding: 16px;
+}
+
+@media (max-width: 767px) {
+  .app-layout {
+    padding: 12px;
+  }
+
+  .app-topbar {
+    padding: 12px 16px;
+  }
+
+  .app-topbar__right {
     gap: 8px;
-
-    .header-left,
-    .header-right {
-      width: 100%;
-      justify-content: space-between;
-    }
-
-    .header-right {
-      gap: 12px;
-    }
-
-    .header-left .breadcrumb {
-      display: none;
-    }
-  }
-
-  .tabs-view-container {
-    padding: 6px 8px 0;
-  }
-
-  .layout-content {
-    margin: 8px;
   }
 }
 </style>

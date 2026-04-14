@@ -4,6 +4,7 @@ const TOKEN_KEY = 'ltts_token'
 const REFRESH_TOKEN_KEY = 'ltts_refresh_token'
 const USER_INFO_KEY = 'ltts_user_info'
 const LANGUAGE_KEY = 'ltts_language'
+const THEME_KEY = 'ltts_theme'
 
 /**
  * 获取 token
@@ -91,6 +92,27 @@ export const removeLanguage = (): void => {
 }
 
 /**
+ * 获取主题
+ */
+export const getTheme = (): string | null => {
+  return localStorage.getItem(THEME_KEY)
+}
+
+/**
+ * 设置主题
+ */
+export const setTheme = (theme: string): void => {
+  localStorage.setItem(THEME_KEY, theme)
+}
+
+/**
+ * 移除主题
+ */
+export const removeTheme = (): void => {
+  localStorage.removeItem(THEME_KEY)
+}
+
+/**
  * 清除所有存储
  */
 export const clearStorage = (): void => {
@@ -98,4 +120,5 @@ export const clearStorage = (): void => {
   removeRefreshToken()
   removeUserInfo()
   removeLanguage()
+  removeTheme()
 }

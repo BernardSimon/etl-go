@@ -63,6 +63,7 @@ export interface PaginationResponse<T> {
 export interface SidebarItem {
   index: string;
   title: string;
+  description?: string;
   icon?: any;
   children?: SidebarItem[];
 }

@@ -1,80 +1,84 @@
 <template>
-  <div class="p-5">
-    <a-card :bordered="false">
-      <div class="file-toolbar flex flex-wrap gap-2 items-center justify-between mb-4">
-        <h2>{{ t('file.title') }}</h2>
-
-        <div class="file-toolbar-actions">
-          <a-input-search
-            v-model:value="searchKeyword"
-            :placeholder="t('file.search.placeholder')"
-            allow-clear
-            @search="handleSearch"
-          />
-          <a-button class="refresh-button" @click="fetchFileList">
-            {{ t('file.refresh') }}
-          </a-button>
-          <a-button type="primary" @click="showUploadModal">
-            {{ t('file.upload.button') }}
-          </a-button>
+  <PageContainer>
+    <ContentCard>
+      <div class="section-stack">
+        <div class="table-toolbar">
+          <div class="table-toolbar__right">
+            <a-button @click="fetchFileList">
+              {{ t("file.refresh") }}
+            </a-button>
+            <a-button type="primary" @click="showUploadModal">
+              {{ t("file.upload.button") }}
+            </a-button>
+          </div>
         </div>
-      </div>
 
-      <a-table
-          class="mt-5"
+        <FilterBar>
+          <div class="filter-field file-search">
+            <span class="filter-field__label">{{ t('file.table.column.name') }}</span>
+            <a-input
+              v-model:value="searchKeyword"
+              :placeholder="t('file.search.placeholder')"
+              allow-clear
+              @pressEnter="handleSearch"
+            />
+          </div>
+          <div class="filter-field filter-field--actions">
+            <a-button @click="handleSearch">
+              {{ t('common.search') }}
+            </a-button>
+          </div>
+        </FilterBar>
+
+        <a-table
+          class="app-shell-table"
           :columns="columns()"
           :data-source="fileList"
           :loading="loading"
           :pagination="pagination"
-          :scroll="{ y: 'calc(100vh - 350px)' }"
+          :scroll="{ x: 'max-content' }"
           @change="handleTableChange"
           row-key="id"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'size'">
-            {{ formatFileSize(record.size) }}
-          </template>
-          <template v-else-if="column.key === 'name'">
-            <div class="file-name-cell">
-              <div class="file-name">{{ record.name }}</div>
-              <div class="file-meta">
-                {{ record.id }}
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'size'">
+              {{ formatFileSize(record.size) }}
+            </template>
+            <template v-else-if="column.key === 'name'">
+              <div class="file-name-cell">
+                <div class="file-name">{{ record.name }}</div>
+                <div class="file-meta">{{ record.id }}</div>
               </div>
-            </div>
+            </template>
+            <template v-else-if="column.key === 'type'">
+              <span class="status-pill">{{ record.ex_name || '-' }}</span>
+            </template>
+            <template v-else-if="column.key === 'action'">
+              <a-space wrap>
+                <a-button type="primary" size="small" @click="downloadFile(record)">
+                  {{ t('file.table.action.download') }}
+                </a-button>
+                <a-button size="small" @click="copyFileId(record.id)">
+                  {{ t('file.table.action.copyId') }}
+                </a-button>
+                <a-button type="primary" danger size="small" @click="handleDeleteFile(record)">
+                  {{ t('file.table.action.delete') }}
+                </a-button>
+              </a-space>
+            </template>
           </template>
-          <template v-else-if="column.key === 'type'">
-            {{ record.ex_name || '-' }}
-          </template>
-          <template v-else-if="column.key === 'action'">
-            <a-space>
-              <a-button type="primary" size="small" @click="downloadFile(record)">
-                {{ t('file.table.action.download') }}
-              </a-button>
-              <a-button size="small" @click="copyFileId(record.id)">
-                {{ t('file.table.action.copyId') }}
-              </a-button>
-              <a-button type="primary" danger size="small" @click="handleDeleteFile(record)">
-                {{ t('file.table.action.delete') }}
-              </a-button>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
-    </a-card>
+        </a-table>
+      </div>
+    </ContentCard>
 
     <!-- 上传文件模态框 -->
-    <a-modal
+    <a-drawer
         v-model:open="uploadModal.visible"
         :title="t('file.upload.modal.title')"
-        :width="isNarrowScreen ? '96vw' : '520px'"
-        @ok="handleUpload"
-        @cancel="closeUploadModal"
-        :confirm-loading="uploadModal.loading"
-        :ok-text="t('file.upload.modal.upload')"
-        :cancel-text="t('file.upload.modal.cancel')"
+        :width="isNarrowScreen ? '100%' : '540px'"
+        @close="closeUploadModal"
         :mask-closable="!uploadModal.loading"
         :closable="!uploadModal.loading"
-        :ok-button-props="{ disabled: uploadModal.fileList.length === 0 || uploadModal.loading }"
     >
       <a-upload-dragger
           v-model:file-list="uploadModal.fileList"
@@ -127,8 +131,21 @@
           {{ t('file.upload.cancelUpload') }}
         </a-button>
       </a-space>
-    </a-modal>
-  </div>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeUploadModal">{{ t('file.upload.modal.cancel') }}</a-button>
+          <a-button
+            type="primary"
+            :loading="uploadModal.loading"
+            :disabled="uploadModal.fileList.length === 0 || uploadModal.loading"
+            @click="handleUpload"
+          >
+            {{ t('file.upload.modal.upload') }}
+          </a-button>
+        </a-space>
+      </template>
+    </a-drawer>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -150,7 +167,6 @@ const handleResize = () => {
 const loading = ref(false);
 const fileList = ref<any[]>([]);
 const searchKeyword = ref("");
-
 const pagination = reactive({
   current: 1,
   pageSize: 10,
@@ -416,23 +432,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.file-toolbar {
-  gap: 12px;
+.table-toolbar {
+  margin-bottom: -4px;
 }
 
-.file-toolbar-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.table-toolbar__right {
+  margin-left: auto;
 }
 
-.refresh-button {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.file-toolbar-actions :deep(.ant-input-search) {
-  width: 260px;
+.file-search {
+  width: 320px;
 }
 
 .file-name-cell {
@@ -447,43 +456,13 @@ onUnmounted(() => {
 
 .file-meta {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--app-text-faint);
   word-break: break-all;
 }
 
 @media (max-width: 768px) {
-  .p-5 {
-    padding: 12px;
-  }
-
-  .file-toolbar,
-  .file-toolbar > div,
-  .file-toolbar-actions {
-    width: 100%;
-  }
-
-  .file-toolbar > div:last-child {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .file-toolbar-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .file-toolbar-actions :deep(.ant-input-search) {
-    width: 100%;
-  }
-
-  .file-toolbar :deep(.ant-btn:not(.refresh-button)) {
-    width: 100%;
-  }
-
-  .refresh-button {
-    width: auto !important;
-    align-self: flex-end;
+  .file-search {
+    width: 240px;
   }
 }
 </style>
