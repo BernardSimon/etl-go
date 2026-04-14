@@ -1468,25 +1468,32 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 
   :deep(.ant-collapse-item) {
     margin-bottom: 12px;
-    border: 1px solid #f0f0f0;
-    border-radius: 8px;
-    background: #fff;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface);
     overflow: hidden;
   }
 
   :deep(.ant-collapse-header) {
     font-weight: 600;
-    background: #fafafa;
+    background: var(--app-surface-muted);
+    color: var(--app-text) !important;
+  }
+
+  :deep(.ant-collapse-content) {
+    background: var(--app-surface) !important;
+    border-top-color: var(--app-border) !important;
   }
 
   :deep(.ant-collapse-content-box) {
     padding-top: 4px;
+    background: var(--app-surface);
   }
 }
 
 .section-intro {
   margin-bottom: 12px;
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1494,7 +1501,7 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 .section-example {
   margin-top: -4px;
   margin-bottom: 4px;
-  color: #8b5e3c;
+  color: var(--app-warning);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1505,7 +1512,7 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 
 .preview-description {
   margin-bottom: 12px;
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1515,9 +1522,10 @@ const fillQuery = (param: ParamItem, tableName: string) => {
   padding: 16px;
   max-height: 280px;
   overflow: auto;
-  border-radius: 8px;
-  background: #0f172a;
-  color: #e2e8f0;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-strong);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -1534,19 +1542,19 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 }
 
 .text-gray-500 {
-  color: #6b7280;
+  color: var(--app-text-soft);
 }
 
 /* ParamFields styles */
 .params-section {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px dashed #f0f0f0;
+  border-top: 1px dashed var(--app-border);
 }
 
 .section-label {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--app-text-soft);
   font-size: 14px;
   font-weight: 500;
 }
@@ -1554,9 +1562,9 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 .param-item {
   margin-bottom: 5px;
   padding: 10px;
-  background: #fff;
-  border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  background: var(--app-surface-muted);
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border);
 }
 
 .param-label {
@@ -1564,17 +1572,17 @@ const fillQuery = (param: ParamItem, tableName: string) => {
   text-align: right;
   margin-top: 8px;
   font-weight: 500;
-  color: #333;
+  color: var(--app-text);
 }
 
 .required-asterisk {
-  color: #ff4d4f;
+  color: var(--app-danger);
   margin-left: 2px;
 }
 
 .param-description {
   font-size: 12px;
-  color: #999;
+  color: var(--app-text-faint);
   margin-top: 4px;
   font-style: italic;
 }
@@ -1609,7 +1617,7 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 
 .preview-empty {
   text-align: center;
-  color: #999;
+  color: var(--app-text-faint);
   padding: 40px 0;
 }
 
@@ -1618,9 +1626,9 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 .processor-item {
   margin-bottom: 16px;
   padding: 12px;
-  background: #fafafa;
-  border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  background: var(--app-surface-muted);
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border);
 }
 
 .processor-header {
@@ -1629,6 +1637,6 @@ const fillQuery = (param: ParamItem, tableName: string) => {
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--app-border);
 }
 </style>

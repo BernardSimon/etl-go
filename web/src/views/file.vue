@@ -71,69 +71,93 @@
       </div>
     </ContentCard>
 
-    <!-- 上传文件模态框 -->
-    <a-drawer
-        v-model:open="uploadModal.visible"
-        :title="t('file.upload.modal.title')"
-        :width="isNarrowScreen ? '100%' : '540px'"
-        @close="closeUploadModal"
-        :mask-closable="!uploadModal.loading"
-        :closable="!uploadModal.loading"
+    <!-- 上传文件 modal -->
+    <a-modal
+      v-model:open="uploadModal.visible"
+      :footer="null"
+      :closable="!uploadModal.loading"
+      :mask-closable="!uploadModal.loading"
+      :width="480"
+      :title="null"
+      @cancel="closeUploadModal"
     >
-      <a-upload-dragger
+      <div class="upload-modal">
+        <div class="upload-modal__header">
+          <span class="upload-modal__title">{{ t('file.upload.modal.title') }}</span>
+        </div>
+
+        <!-- 拖拽区域（未选文件） -->
+        <a-upload-dragger
+          v-if="uploadModal.fileList.length === 0"
           v-model:file-list="uploadModal.fileList"
           :before-upload="beforeUpload"
           :max-count="1"
-          :show-upload-list="true"
-          :disabled="uploadModal.loading"
-      >
-        <p class="ant-upload-drag-icon">
-          <inbox-outlined></inbox-outlined>
-        </p>
-        <p class="ant-upload-text">{{ t('file.upload.select') }}</p>
-        <p class="ant-upload-hint">{{ t('file.upload.hint') }}</p>
-      </a-upload-dragger>
-      <div v-if="uploadModal.fileList.length > 0" class="upload-meta">
-        <div>{{ t('file.upload.selectedSize', { size: formatFileSize(getSelectedFileSize()) }) }}</div>
-        <div>{{ t('file.upload.currentFile', { name: getSelectedFileName() }) }}</div>
-        <div v-if="uploadModal.loading && chunkedState === 'completing'">
-          {{ t('file.upload.assembling') }}
-        </div>
-        <div v-else-if="uploadModal.loading">
-          {{ t('file.upload.progress', { progress: uploadModal.progress }) }}
-        </div>
-        <div v-if="uploadModal.loading && isChunkedUpload">
-          {{ t('file.upload.chunkProgress', { current: chunkedCurrentChunk, total: chunkedTotalChunks }) }}
-        </div>
-      </div>
-      <a-progress
-          v-if="uploadModal.loading"
-          :percent="uploadModal.progress"
-          :status="uploadModal.progress >= 100 ? 'success' : 'active'"
-          style="margin-top: 12px"
-      />
-      <a-space v-if="uploadModal.loading" style="margin-top: 12px; width: 100%; display: flex">
-        <a-button
-            v-if="isChunkedUpload && chunkedState === 'paused'"
-            block
-            @click="resumeUpload"
+          :show-upload-list="false"
+          class="upload-dropzone"
         >
-          {{ t('file.upload.resume') }}
-        </a-button>
-        <a-button
-            v-else-if="isChunkedUpload && chunkedState === 'uploading'"
-            block
-            @click="pauseUpload"
-        >
-          {{ t('file.upload.pause') }}
-        </a-button>
-        <a-button danger block @click="cancelUpload">
-          {{ t('file.upload.cancelUpload') }}
-        </a-button>
-      </a-space>
-      <template #footer>
-        <a-space>
-          <a-button @click="closeUploadModal">{{ t('file.upload.modal.cancel') }}</a-button>
+          <div class="upload-dropzone__inner">
+            <div class="upload-dropzone__icon">
+              <inbox-outlined />
+            </div>
+            <p class="upload-dropzone__primary">{{ t('file.upload.select') }}</p>
+            <p class="upload-dropzone__hint">{{ t('file.upload.hint') }}</p>
+          </div>
+        </a-upload-dragger>
+
+        <!-- 已选文件卡片 -->
+        <div v-else class="upload-file-card">
+          <div class="upload-file-card__ext">
+            {{ getSelectedFileExt() }}
+          </div>
+          <div class="upload-file-card__info">
+            <div class="upload-file-card__name">{{ getSelectedFileName() }}</div>
+            <div class="upload-file-card__size">{{ formatFileSize(getSelectedFileSize()) }}</div>
+          </div>
+          <button
+            v-if="!uploadModal.loading"
+            class="upload-file-card__remove"
+            type="button"
+            @click="uploadModal.fileList = []"
+          >✕</button>
+        </div>
+
+        <!-- 上传进度 -->
+        <div v-if="uploadModal.loading" class="upload-progress">
+          <div class="upload-progress__label">
+            <span v-if="chunkedState === 'completing'">{{ t('file.upload.assembling') }}</span>
+            <span v-else-if="isChunkedUpload">
+              {{ t('file.upload.chunkProgress', { current: chunkedCurrentChunk, total: chunkedTotalChunks }) }}
+            </span>
+            <span v-else>{{ t('file.upload.progress', { progress: uploadModal.progress }) }}</span>
+            <span class="upload-progress__pct">{{ uploadModal.progress }}%</span>
+          </div>
+          <a-progress
+            :percent="uploadModal.progress"
+            :status="uploadModal.progress >= 100 ? 'success' : 'active'"
+            :show-info="false"
+          />
+          <div class="upload-progress__controls">
+            <a-button
+              v-if="isChunkedUpload && chunkedState === 'paused'"
+              size="small"
+              @click="resumeUpload"
+            >{{ t('file.upload.resume') }}</a-button>
+            <a-button
+              v-else-if="isChunkedUpload && chunkedState === 'uploading'"
+              size="small"
+              @click="pauseUpload"
+            >{{ t('file.upload.pause') }}</a-button>
+            <a-button size="small" danger @click="cancelUpload">
+              {{ t('file.upload.cancelUpload') }}
+            </a-button>
+          </div>
+        </div>
+
+        <!-- 底部操作 -->
+        <div class="upload-modal__footer">
+          <a-button :disabled="uploadModal.loading" @click="closeUploadModal">
+            {{ t('file.upload.modal.cancel') }}
+          </a-button>
           <a-button
             type="primary"
             :loading="uploadModal.loading"
@@ -142,14 +166,14 @@
           >
             {{ t('file.upload.modal.upload') }}
           </a-button>
-        </a-space>
-      </template>
-    </a-drawer>
+        </div>
+      </div>
+    </a-modal>
   </PageContainer>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import {message, Modal, UploadProps} from 'ant-design-vue';
 import { InboxOutlined } from '@ant-design/icons-vue';
 import { useI18n } from 'vue-i18n';
@@ -158,11 +182,6 @@ import { useChunkedUpload, type ChunkedUploadState } from '../composables/useChu
 import {useUserStore} from "../stores/user.ts";
 
 const { t } = useI18n();
-const screenWidth = ref(window.innerWidth);
-const isNarrowScreen = computed(() => screenWidth.value < 768);
-const handleResize = () => {
-  screenWidth.value = window.innerWidth;
-};
 
 const loading = ref(false);
 const fileList = ref<any[]>([]);
@@ -308,6 +327,12 @@ const getSelectedFileName = () => {
   return selectedFile?.name || selectedFile?.originFileObj?.name || "-";
 };
 
+const getSelectedFileExt = () => {
+  const name = getSelectedFileName();
+  const parts = name.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
+};
+
 const cancelUpload = async () => {
   if (chunkedUpload.value) {
     await chunkedUpload.value.cancel();
@@ -348,6 +373,8 @@ const handleUpload = async () => {
         uploadModal.progress = percent;
       });
       uploadModal.progress = 100;
+      uploadModal.loading = false;
+      chunkedUpload.value = null;
       message.success(t('file.upload.success'));
       closeUploadModal();
       fetchFileList();
@@ -362,7 +389,7 @@ const handleUpload = async () => {
       chunkedUpload.value = null;
     }
   } else {
-    // ── Small-file path (unchanged) ───────────────────────────────────────
+    // ── Small-file path ───────────────────────────────────────────────────
     uploadModal.controller = new AbortController();
     try {
       const formData = new FormData();
@@ -376,16 +403,20 @@ const handleUpload = async () => {
       });
       if (res && res.code === 0) {
         uploadModal.progress = 100;
+        uploadModal.loading = false;
+        uploadModal.controller = null;
         message.success(t('file.upload.success'));
         closeUploadModal();
         fetchFileList();
+      } else {
+        message.error(res?.message || t('request.failed'));
       }
     } catch (error: any) {
       if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
         message.warning(t('file.upload.cancelled'));
-        return;
+      } else {
+        message.error(error?.message || t('request.failed'));
       }
-      message.error(error?.message || t('request.failed'));
     } finally {
       uploadModal.loading = false;
       uploadModal.controller = null;
@@ -422,24 +453,11 @@ const handleDeleteFile = (record: any) => {
 };
 
 onMounted(() => {
-  window.addEventListener("resize", handleResize);
   fetchFileList();
-});
-
-onUnmounted(() => {
-  window.removeEventListener("resize", handleResize);
 });
 </script>
 
 <style scoped lang="scss">
-.table-toolbar {
-  margin-bottom: -4px;
-}
-
-.table-toolbar__right {
-  margin-left: auto;
-}
-
 .file-search {
   width: 320px;
 }
@@ -458,6 +476,174 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--app-text-faint);
   word-break: break-all;
+}
+
+// ── Upload modal ──────────────────────────────────────────────────────────────
+
+.upload-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 0;
+}
+
+.upload-modal__header {
+  display: flex;
+  align-items: center;
+}
+
+.upload-modal__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.upload-dropzone {
+  :deep(.ant-upload-drag) {
+    border-radius: var(--app-radius-md) !important;
+    border-color: var(--app-border) !important;
+    background: var(--app-surface-muted) !important;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  :deep(.ant-upload-drag:hover) {
+    border-color: var(--app-primary) !important;
+    background: var(--app-primary-soft) !important;
+  }
+}
+
+.upload-dropzone__inner {
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-dropzone__icon {
+  font-size: 40px;
+  color: var(--app-primary);
+  line-height: 1;
+}
+
+.upload-dropzone__primary {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-text);
+  margin: 0;
+}
+
+.upload-dropzone__hint {
+  font-size: 12px;
+  color: var(--app-text-faint);
+  margin: 0;
+}
+
+.upload-file-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
+}
+
+.upload-file-card__ext {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  display: grid;
+  place-items: center;
+}
+
+.upload-file-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.upload-file-card__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-file-card__size {
+  font-size: 12px;
+  color: var(--app-text-faint);
+  margin-top: 2px;
+}
+
+.upload-file-card__remove {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--app-border);
+  background: transparent;
+  color: var(--app-text-soft);
+  font-size: 14px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s;
+
+  &:hover {
+    background: var(--app-danger);
+    border-color: var(--app-danger);
+    color: white;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
+}
+
+.upload-progress__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--app-text-soft);
+}
+
+.upload-progress__pct {
+  font-weight: 600;
+  color: var(--app-primary);
+}
+
+.upload-progress__controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.upload-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--app-border);
 }
 
 @media (max-width: 768px) {
