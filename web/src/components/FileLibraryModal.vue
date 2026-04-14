@@ -48,6 +48,12 @@
           <div v-if="uploadState.loading && uploadState.currentFileName" class="upload-progress-text">
             {{ t('file.upload.currentFile', { name: uploadState.currentFileName }) }}
           </div>
+          <div v-if="uploadState.loading && isCurrentChunked && chunkedState === 'completing'" class="upload-progress-text">
+            {{ t('file.upload.assembling') }}
+          </div>
+          <div v-if="uploadState.loading && isCurrentChunked" class="upload-progress-text">
+            {{ t('file.upload.chunkProgress', { current: chunkedCurrentChunk, total: chunkedTotalChunks }) }}
+          </div>
         </div>
 
         <a-progress
@@ -65,6 +71,18 @@
             @click="handleUpload"
           >
             {{ t('file.upload.modal.upload') }}
+          </a-button>
+          <a-button
+            v-if="uploadState.loading && isCurrentChunked && chunkedState === 'paused'"
+            @click="resumeUpload"
+          >
+            {{ t('file.upload.resume') }}
+          </a-button>
+          <a-button
+            v-else-if="uploadState.loading && isCurrentChunked && chunkedState === 'uploading'"
+            @click="pauseUpload"
+          >
+            {{ t('file.upload.pause') }}
           </a-button>
           <a-button
             v-if="uploadState.loading"
@@ -126,7 +144,8 @@ import { message } from "ant-design-vue";
 import type { UploadProps } from "ant-design-vue";
 import { InboxOutlined } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
-import { buildFileDownloadUrl, getFileList, uploadFile } from "../api/file";
+import { buildFileDownloadUrl, getFileList, uploadFile, LARGE_FILE_THRESHOLD } from "../api/file";
+import { useChunkedUpload, type ChunkedUploadState } from "../composables/useChunkedUpload";
 import type { FileInfo } from "../types";
 import { useUserStore } from "../stores/user";
 
@@ -175,6 +194,13 @@ const uploadState = reactive({
   currentIndex: 0,
   totalFiles: 0,
 });
+
+// Chunked upload instance for the currently uploading file (large files only)
+const currentChunkedUpload = ref<ReturnType<typeof useChunkedUpload> | null>(null);
+const isCurrentChunked = computed(() => currentChunkedUpload.value !== null);
+const chunkedState = computed<ChunkedUploadState>(() => currentChunkedUpload.value?.state ?? 'idle');
+const chunkedCurrentChunk = computed(() => currentChunkedUpload.value?.currentChunk ?? 0);
+const chunkedTotalChunks = computed(() => currentChunkedUpload.value?.totalChunks ?? 0);
 
 const columns = computed(() => [
   {
@@ -306,9 +332,16 @@ const beforeUpload: UploadProps["beforeUpload"] = (file) => {
   return false;
 };
 
-const cancelUpload = () => {
-  uploadState.controller?.abort();
+const cancelUpload = async () => {
+  if (currentChunkedUpload.value) {
+    await currentChunkedUpload.value.cancel();
+  } else {
+    uploadState.controller?.abort();
+  }
 };
+
+const pauseUpload = () => currentChunkedUpload.value?.pause();
+const resumeUpload = () => currentChunkedUpload.value?.resume();
 
 const handleUpload = async () => {
   if (uploadState.fileList.length === 0) {
@@ -329,24 +362,38 @@ const handleUpload = async () => {
 
     for (const [index, item] of uploadState.fileList.entries()) {
       uploadState.currentIndex = index + 1;
-      uploadState.currentFileName = item?.name || item?.originFileObj?.name || "";
+      const rawFile = item.originFileObj || item;
+      uploadState.currentFileName = rawFile?.name || "";
 
-      const formData = new FormData();
-      formData.append("file", item.originFileObj || item);
-      const res = await uploadFile(formData, {
-        signal: uploadState.controller?.signal,
-        onUploadProgress: (event) => {
-          if (!event.total) {
-            return;
-          }
-          const currentFileProgress = event.loaded / event.total;
+      if (rawFile.size >= LARGE_FILE_THRESHOLD) {
+        // ── Chunked path ────────────────────────────────────────────────
+        const upload = useChunkedUpload();
+        currentChunkedUpload.value = upload;
+        const fileInfo = await upload.start(rawFile, (percent) => {
           uploadState.progress = Math.min(
             99,
-            Math.round(((index + currentFileProgress) / totalFiles) * 100)
+            Math.round(((index + percent / 100) / totalFiles) * 100)
           );
-        },
-      });
-      results.push(res.data);
+        });
+        currentChunkedUpload.value = null;
+        results.push(fileInfo);
+      } else {
+        // ── Small-file path ─────────────────────────────────────────────
+        const formData = new FormData();
+        formData.append("file", rawFile);
+        const res = await uploadFile(formData, {
+          signal: uploadState.controller?.signal,
+          onUploadProgress: (event) => {
+            if (!event.total) return;
+            const currentFileProgress = event.loaded / event.total;
+            uploadState.progress = Math.min(
+              99,
+              Math.round(((index + currentFileProgress) / totalFiles) * 100)
+            );
+          },
+        });
+        results.push(res.data);
+      }
     }
 
     uploadState.progress = 100;
@@ -369,6 +416,7 @@ const handleUpload = async () => {
     uploadState.currentFileName = "";
     uploadState.currentIndex = 0;
     uploadState.totalFiles = 0;
+    currentChunkedUpload.value = null;
   }
 };
 

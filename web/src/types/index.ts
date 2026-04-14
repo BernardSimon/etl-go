@@ -95,6 +95,36 @@ export interface DeleteFileRequest {
   id: string;
 }
 
+// ── Chunked upload types ──────────────────────────────────────────────────────
+
+export interface InitUploadSessionRequest {
+  filename: string;
+  total_size: number;
+  chunk_size: number;
+  total_chunks: number;
+  expected_hash?: string;
+}
+
+export interface UploadSessionInfo {
+  session_id: string;
+  chunk_size: number;
+  total_chunks: number;
+}
+
+export interface UploadSessionStatus {
+  session_id: string;
+  status: 'pending' | 'uploading' | 'assembling' | 'done' | 'error' | 'cancelled';
+  total_chunks: number;
+  received_chunks: number;
+  received_map: number[];
+  file_id: string;
+}
+
+export interface ChunkUploadResult {
+  received_chunks: number;
+  total_chunks: number;
+}
+
 export interface Params {
   key:string;
   required:boolean;

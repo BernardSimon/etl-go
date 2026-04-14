@@ -92,7 +92,15 @@
       <div v-if="uploadModal.fileList.length > 0" class="upload-meta">
         <div>{{ t('file.upload.selectedSize', { size: formatFileSize(getSelectedFileSize()) }) }}</div>
         <div>{{ t('file.upload.currentFile', { name: getSelectedFileName() }) }}</div>
-        <div v-if="uploadModal.loading">{{ t('file.upload.progress', { progress: uploadModal.progress }) }}</div>
+        <div v-if="uploadModal.loading && chunkedState === 'completing'">
+          {{ t('file.upload.assembling') }}
+        </div>
+        <div v-else-if="uploadModal.loading">
+          {{ t('file.upload.progress', { progress: uploadModal.progress }) }}
+        </div>
+        <div v-if="uploadModal.loading && isChunkedUpload">
+          {{ t('file.upload.chunkProgress', { current: chunkedCurrentChunk, total: chunkedTotalChunks }) }}
+        </div>
       </div>
       <a-progress
           v-if="uploadModal.loading"
@@ -100,15 +108,25 @@
           :status="uploadModal.progress >= 100 ? 'success' : 'active'"
           style="margin-top: 12px"
       />
-      <a-button
-          v-if="uploadModal.loading"
-          danger
-          block
-          style="margin-top: 12px"
-          @click="cancelUpload"
-      >
-        {{ t('file.upload.cancelUpload') }}
-      </a-button>
+      <a-space v-if="uploadModal.loading" style="margin-top: 12px; width: 100%; display: flex">
+        <a-button
+            v-if="isChunkedUpload && chunkedState === 'paused'"
+            block
+            @click="resumeUpload"
+        >
+          {{ t('file.upload.resume') }}
+        </a-button>
+        <a-button
+            v-else-if="isChunkedUpload && chunkedState === 'uploading'"
+            block
+            @click="pauseUpload"
+        >
+          {{ t('file.upload.pause') }}
+        </a-button>
+        <a-button danger block @click="cancelUpload">
+          {{ t('file.upload.cancelUpload') }}
+        </a-button>
+      </a-space>
     </a-modal>
   </div>
 </template>
@@ -118,7 +136,8 @@ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import {message, Modal, UploadProps} from 'ant-design-vue';
 import { InboxOutlined } from '@ant-design/icons-vue';
 import { useI18n } from 'vue-i18n';
-import { buildFileDownloadUrl, getFileList, uploadFile, deleteFile } from '../api/file';
+import { buildFileDownloadUrl, getFileList, uploadFile, deleteFile, LARGE_FILE_THRESHOLD } from '../api/file';
+import { useChunkedUpload, type ChunkedUploadState } from '../composables/useChunkedUpload';
 import {useUserStore} from "../stores/user.ts";
 
 const { t } = useI18n();
@@ -181,6 +200,13 @@ const uploadModal = reactive({
   fileList: [] as any[],
   controller: null as AbortController | null,
 });
+
+// Chunked upload instance (set while a large-file upload is in progress)
+const chunkedUpload = ref<ReturnType<typeof useChunkedUpload> | null>(null);
+const isChunkedUpload = computed(() => chunkedUpload.value !== null);
+const chunkedState = computed<ChunkedUploadState>(() => chunkedUpload.value?.state ?? 'idle');
+const chunkedCurrentChunk = computed(() => chunkedUpload.value?.currentChunk ?? 0);
+const chunkedTotalChunks = computed(() => chunkedUpload.value?.totalChunks ?? 0);
 
 // 格式化文件大小
 const formatFileSize = (bytes: number): string => {
@@ -266,9 +292,16 @@ const getSelectedFileName = () => {
   return selectedFile?.name || selectedFile?.originFileObj?.name || "-";
 };
 
-const cancelUpload = () => {
-  uploadModal.controller?.abort();
+const cancelUpload = async () => {
+  if (chunkedUpload.value) {
+    await chunkedUpload.value.cancel();
+  } else {
+    uploadModal.controller?.abort();
+  }
 };
+
+const pauseUpload = () => chunkedUpload.value?.pause();
+const resumeUpload = () => chunkedUpload.value?.resume();
 
 const copyFileId = async (id: string) => {
   try {
@@ -285,38 +318,62 @@ const handleUpload = async () => {
     message.warning(t('file.upload.select'));
     return;
   }
+
+  const rawFile = uploadModal.fileList[0].originFileObj || uploadModal.fileList[0];
   uploadModal.loading = true;
   uploadModal.progress = 0;
-  uploadModal.controller = new AbortController();
-  try {
-    const formData = new FormData();
-    formData.append('file', uploadModal.fileList[0].originFileObj || uploadModal.fileList[0]);
-    const res = await uploadFile(formData, {
-      signal: uploadModal.controller.signal,
-      onUploadProgress: (event) => {
-        if (!event.total) {
-          return;
-        }
-        uploadModal.progress = Math.min(99, Math.round((event.loaded / event.total) * 100));
-      },
-    });
 
-    if (res && res.code === 0) {
+  if (rawFile.size >= LARGE_FILE_THRESHOLD) {
+    // ── Chunked path ──────────────────────────────────────────────────────
+    const upload = useChunkedUpload();
+    chunkedUpload.value = upload;
+    try {
+      await upload.start(rawFile, (percent) => {
+        uploadModal.progress = percent;
+      });
       uploadModal.progress = 100;
       message.success(t('file.upload.success'));
-      uploadModal.loading = false;
       closeUploadModal();
       fetchFileList();
+    } catch (err: any) {
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || upload.state.value === 'cancelled') {
+        message.warning(t('file.upload.cancelled'));
+      } else {
+        message.error(err?.message || t('request.failed'));
+      }
+    } finally {
+      uploadModal.loading = false;
+      chunkedUpload.value = null;
     }
-  } catch (error: any) {
-    if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") {
-      message.warning(t('file.upload.cancelled'));
-      return;
+  } else {
+    // ── Small-file path (unchanged) ───────────────────────────────────────
+    uploadModal.controller = new AbortController();
+    try {
+      const formData = new FormData();
+      formData.append('file', rawFile);
+      const res = await uploadFile(formData, {
+        signal: uploadModal.controller.signal,
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          uploadModal.progress = Math.min(99, Math.round((event.loaded / event.total) * 100));
+        },
+      });
+      if (res && res.code === 0) {
+        uploadModal.progress = 100;
+        message.success(t('file.upload.success'));
+        closeUploadModal();
+        fetchFileList();
+      }
+    } catch (error: any) {
+      if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+        message.warning(t('file.upload.cancelled'));
+        return;
+      }
+      message.error(error?.message || t('request.failed'));
+    } finally {
+      uploadModal.loading = false;
+      uploadModal.controller = null;
     }
-    message.error(error?.message || t('request.failed'));
-  } finally {
-    uploadModal.loading = false;
-    uploadModal.controller = null;
   }
 };
 

@@ -84,6 +84,16 @@ func Register(engine *gin.Engine) {
 	v1.GET("/files", AdminAPI(api.GetFileList))
 	v1.POST("/files", AdminAPI(api.UploadFile, true))
 	v1.DELETE("/files/:id", AdminAPI(api.DeleteFile))
+
+	// 分片上传会话管理（JSON body，走完整中间件）
+	v1.POST("/files/upload/init", AdminAPI(api.InitUploadSession))
+	v1.GET("/files/upload/:session_id", AdminAPI(api.GetUploadStatus))
+	v1.POST("/files/upload/:session_id/complete", AdminAPI(api.CompleteUpload))
+	v1.DELETE("/files/upload/:session_id", AdminAPI(api.CancelUpload))
+
+	// 分片数据上传（二进制流，绕过 body 预读中间件，由 handler 自行鉴权）
+	v1Raw := engine.Group("/api/v1")
+	v1Raw.PUT("/files/upload/:session_id/chunk/:chunk_index", api.UploadChunkRaw)
 }
 
 // AdminAPI 是通用路由处理器工厂，URI 参数和 Body 参数完全分离：
