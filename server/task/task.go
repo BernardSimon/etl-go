@@ -379,6 +379,7 @@ func GetValueByName(name string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		config.ApplyDatasourcePoolConfig(dataSourceDataConfig)
 		err = dsStore.Handle.Init(dataSourceDataConfig)
 		if err != nil {
 			return "", errors.New("variable data source open error")

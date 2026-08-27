@@ -7,10 +7,10 @@ export const publicRoutes: RouteRecordRaw[] = [
     name: 'Login',
     component: () => import('../../views/Login.vue'),
     meta: {
-      title:"router.login",
+      title: "router.login",
+      description: "page.login.description",
       requiresAuth: false,
     },
   },
 ]
-
 

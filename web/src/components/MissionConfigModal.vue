@@ -52,6 +52,19 @@
               <div v-if="showCronField" class="section-example">
                 {{ t('missionConfig.cron.example') }}
               </div>
+
+              <a-form-item :label="t('missionConfig.tags.label')">
+                <a-select
+                    v-model:value="formData.tag_ids"
+                    mode="multiple"
+                    :placeholder="t('missionConfig.tags.placeholder')"
+                    allow-clear
+                    :show-search="false"
+                    :disabled="mode === 'read'"
+                    style="width: 100%"
+                    :options="tagOptions"
+                />
+              </a-form-item>
             </a-collapse-panel>
 
             <a-collapse-panel key="before" :header="t('missionConfig.beforeTask.title')">
@@ -761,48 +774,15 @@
       @confirm="handleFileLibraryConfirm"
     />
 
-    <!-- 数据预览弹窗 -->
-    <a-modal
-      v-model:open="previewVisible"
-      :title="t('missionConfig.preview.modalTitle')"
-      width="80vw"
-      :footer="null"
-      :destroy-on-close="true"
-    >
-      <a-spin :spinning="previewLoading">
-        <div v-if="!previewLoading && previewColumns.length === 0" class="preview-empty">
-          {{ t('missionConfig.preview.empty') }}
-        </div>
-        <a-table
-          v-else
-          :columns="previewColumns"
-          :data-source="previewRows"
-          :row-key="'_key'"
-          :scroll="{ x: 'max-content', y: 400 }"
-          size="small"
-          :pagination="false"
-        />
-      </a-spin>
-    </a-modal>
     <template #footer>
       <a-space v-if="mode !== 'read'">
         <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
         <a-button :loading="templateSaving" @click="handleSaveTemplate">
           {{ t('missionConfig.template.save') }}
         </a-button>
-        <a-tooltip :title="props.id ? '' : t('missionConfig.preview.saveFirst')">
-          <a-button :loading="previewLoading" @click="handlePreview">
-            {{ t('missionConfig.preview.btn') }}
-          </a-button>
-        </a-tooltip>
         <a-button type="primary" @click="handleOk">{{ t('common.confirm') }}</a-button>
       </a-space>
       <a-space v-else>
-        <a-tooltip :title="props.id ? '' : t('missionConfig.preview.saveFirst')">
-          <a-button :loading="previewLoading" @click="handlePreview">
-            {{ t('missionConfig.preview.btn') }}
-          </a-button>
-        </a-tooltip>
         <a-button @click="handleCancel">{{ t('common.close') }}</a-button>
       </a-space>
     </template>
@@ -813,7 +793,9 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
-import { addTask, updateTask, getTypeByComponent, saveTaskTemplate, previewTask } from "../api/mission";
+import { addTask, updateTask, getTypeByComponent, saveTaskTemplate } from "../api/mission";
+import { getTagList } from "../api/tag";
+import type { Tag } from "../api/tag";
 import type { ConfigItem, TaskType, ParamItem } from "../types/mission";
 import { useI18n } from "vue-i18n";
 import { getFileList } from "../api/file.ts";
@@ -893,6 +875,7 @@ const formData = reactive({
   id: "",
   mission_name: "",
   cron: props.taskType === 'manual' ? 'manual' : "",
+  tag_ids: [] as string[],
   before_execute: createEmptyConfig(),
   source: createEmptyConfig(),
   processors: [] as ConfigItem[],
@@ -900,10 +883,29 @@ const formData = reactive({
   after_execute: createEmptyConfig(),
 });
 
+// 标签相关
+const allTags = ref<Tag[]>([]);
+
+const tagOptions = computed(() =>
+  allTags.value.map(tag => ({ label: tag.name, value: tag.id }))
+);
+
+const fetchTags = async () => {
+  try {
+    const res = await getTagList();
+    if (res.code === 0) {
+      allTags.value = res.data || [];
+    }
+  } catch {
+    // ignore
+  }
+};
+
 const buildTaskPayload = (includeId = props.mode === "edit") => {
   const payload: Record<string, any> = {
     mission_name: formData.mission_name,
     cron: formData.cron,
+    tag_ids: formData.tag_ids,
     params: {
       before_execute: formData.before_execute.type ? formData.before_execute : null,
       source: formData.source.type ? formData.source : null,
@@ -1035,12 +1037,16 @@ const initForm = async () => {
       };
     }
 
+    // 加载标签列表
+    await fetchTags();
+
     // 根据模式初始化数据
     if (!props.data) {
       Object.assign(formData, {
         id: "",
         mission_name: "",
         cron: props.taskType === 'manual' ? 'manual' : "",
+        tag_ids: [],
         before_execute: createEmptyConfig(),
         source: createEmptyConfig(),
         processors: [],
@@ -1061,6 +1067,9 @@ const initForm = async () => {
 
     const isManualTask = props.taskType === "manual" || record.cron === 'manual';
     formData.cron = isManualTask ? 'manual' : (record.cron || "");
+
+    // 加载已有标签
+    formData.tag_ids = (record.tags || []).map((t: any) => t.id);
 
     resetConfigItem(formData.before_execute, data.before_execute, "execute");
     resetConfigItem(formData.source, data.source, "source");
@@ -1380,38 +1389,6 @@ const removeSelectedFile = (param: ParamItem, id: string) => {
   param.value = isMultiFileParam(param) ? nextIds.join(",") : "";
 };
 
-// ── 数据预览 ──────────────────────────────────────────────────────────────────
-
-const previewVisible = ref(false)
-const previewLoading = ref(false)
-const previewColumns = ref<{ title: string; dataIndex: string; key: string; ellipsis: boolean }[]>([])
-const previewRows = ref<Record<string, any>[]>([])
-
-const handlePreview = async () => {
-  if (!props.id) {
-    message.info(t('missionConfig.preview.saveFirst'))
-    return
-  }
-  previewLoading.value = true
-  previewVisible.value = true
-  previewColumns.value = []
-  previewRows.value = []
-  try {
-    const res = await previewTask(props.id)
-    if (res.code === 0) {
-      previewColumns.value = (res.data.columns || []).map(col => ({
-        title: col,
-        dataIndex: col,
-        key: col,
-        ellipsis: true,
-      }))
-      previewRows.value = (res.data.rows || []).map((row, i) => ({ ...row, _key: i }))
-    }
-  } finally {
-    previewLoading.value = false
-  }
-}
-
 // ── Schema 发现 ───────────────────────────────────────────────────────────────
 
 interface TableInfo {
@@ -1533,25 +1510,32 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 
   :deep(.ant-collapse-item) {
     margin-bottom: 12px;
-    border: 1px solid #f0f0f0;
-    border-radius: 8px;
-    background: #fff;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface);
     overflow: hidden;
   }
 
   :deep(.ant-collapse-header) {
     font-weight: 600;
-    background: #fafafa;
+    background: var(--app-surface-muted);
+    color: var(--app-text) !important;
+  }
+
+  :deep(.ant-collapse-content) {
+    background: var(--app-surface) !important;
+    border-top-color: var(--app-border) !important;
   }
 
   :deep(.ant-collapse-content-box) {
     padding-top: 4px;
+    background: var(--app-surface);
   }
 }
 
 .section-intro {
   margin-bottom: 12px;
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1559,7 +1543,7 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 .section-example {
   margin-top: -4px;
   margin-bottom: 4px;
-  color: #8b5e3c;
+  color: var(--app-warning);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1570,7 +1554,7 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 
 .preview-description {
   margin-bottom: 12px;
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1580,9 +1564,10 @@ const fillQuery = (param: ParamItem, tableName: string) => {
   padding: 16px;
   max-height: 280px;
   overflow: auto;
-  border-radius: 8px;
-  background: #0f172a;
-  color: #e2e8f0;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-strong);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -1599,19 +1584,19 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 }
 
 .text-gray-500 {
-  color: #6b7280;
+  color: var(--app-text-soft);
 }
 
 /* ParamFields styles */
 .params-section {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px dashed #f0f0f0;
+  border-top: 1px dashed var(--app-border);
 }
 
 .section-label {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--app-text-soft);
   font-size: 14px;
   font-weight: 500;
 }
@@ -1619,9 +1604,9 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 .param-item {
   margin-bottom: 5px;
   padding: 10px;
-  background: #fff;
-  border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  background: var(--app-surface-muted);
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border);
 }
 
 .param-label {
@@ -1629,17 +1614,17 @@ const fillQuery = (param: ParamItem, tableName: string) => {
   text-align: right;
   margin-top: 8px;
   font-weight: 500;
-  color: #333;
+  color: var(--app-text);
 }
 
 .required-asterisk {
-  color: #ff4d4f;
+  color: var(--app-danger);
   margin-left: 2px;
 }
 
 .param-description {
   font-size: 12px;
-  color: #999;
+  color: var(--app-text-faint);
   margin-top: 4px;
   font-style: italic;
 }
@@ -1674,7 +1659,7 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 
 .preview-empty {
   text-align: center;
-  color: #999;
+  color: var(--app-text-faint);
   padding: 40px 0;
 }
 
@@ -1683,9 +1668,9 @@ const fillQuery = (param: ParamItem, tableName: string) => {
 .processor-item {
   margin-bottom: 16px;
   padding: 12px;
-  background: #fafafa;
-  border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  background: var(--app-surface-muted);
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border);
 }
 
 .processor-header {
@@ -1694,6 +1679,6 @@ const fillQuery = (param: ParamItem, tableName: string) => {
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--app-border);
 }
 </style>

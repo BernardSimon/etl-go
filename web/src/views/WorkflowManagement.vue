@@ -1,69 +1,83 @@
 <template>
-  <div class="workflow-container">
-    <a-card :bordered="false" class="main-card">
-      <div class="table-operations">
-        <div class="left">
-          <a-space>
-          <a-button type="primary" @click="handleAdd">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            {{ t('workflow.add.button') }}
-          </a-button>
-          <a-button type="default" @click="handleAddManual">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            {{ t('workflow.addManual.button') }}
-          </a-button>
-          <a-button type="default" @click="templateModal.visible = true">
-            {{ t('workflow.template.useButton') }}
-          </a-button>
-          </a-space>
+  <PageContainer>
+    <ContentCard>
+      <div class="section-stack">
+        <div class="table-toolbar">
+          <div class="table-toolbar__right">
+            <a-button @click="fetchData">
+              <template #icon><ReloadOutlined /></template>
+              {{ t('common.refresh') }}
+            </a-button>
+            <a-button @click="tagManageModal.visible = true">
+              <template #icon><TagsOutlined /></template>
+              {{ t('workflow.tag.manage') }}
+            </a-button>
+            <a-button type="default" @click="templateModal.visible = true">
+              {{ t('workflow.template.useButton') }}
+            </a-button>
+            <a-button type="default" @click="handleAddManual">
+              <template #icon><PlusOutlined /></template>
+              {{ t('workflow.addManual.button') }}
+            </a-button>
+            <a-button type="primary" @click="handleAdd">
+              <template #icon><PlusOutlined /></template>
+              {{ t('workflow.add.button') }}
+            </a-button>
+          </div>
         </div>
 
-        <div class="right">
-          <a-button
-            shape="circle"
-            :title="t('common.refresh')"
-            :aria-label="t('common.refresh')"
-            @click="fetchData"
-          >
-            <template #icon>
-              <ReloadOutlined />
-            </template>
-          </a-button>
-        </div>
-      </div>
-
-      <div class="workflow-toolbar">
-        <div class="filter-bar">
-          <a-input
-            v-model:value="filters.keyword"
-            :placeholder="t('workflow.search.keyword')"
-            allow-clear
-            @pressEnter="handleFilterChange"
-          />
-          <a-select
-            v-model:value="filters.status"
-            :placeholder="t('workflow.search.status')"
-            allow-clear
-            @change="handleFilterChange"
-          >
-            <a-select-option :value="0">{{ t('workflow.status.paused') }}</a-select-option>
-            <a-select-option :value="1">{{ t('workflow.status.scheduling') }}</a-select-option>
-            <a-select-option :value="2">{{ t('workflow.status.error') }}</a-select-option>
-          </a-select>
-          <a-select
-            v-model:value="filters.taskType"
-            :placeholder="t('workflow.search.taskType')"
-            allow-clear
-            @change="handleFilterChange"
-          >
-            <a-select-option value="scheduled">{{ t('workflow.taskType.scheduled') }}</a-select-option>
-            <a-select-option value="manual">{{ t('workflow.taskType.manual') }}</a-select-option>
-          </a-select>
-        </div>
+        <FilterBar>
+          <div class="filter-field workflow-filter workflow-filter--wide">
+            <span class="filter-field__label">{{ t('workflow.table.column.missionName') }}</span>
+            <a-input
+              v-model:value="filters.keyword"
+              :placeholder="t('workflow.search.keyword')"
+              allow-clear
+              @pressEnter="handleFilterChange"
+            />
+          </div>
+          <div class="filter-field workflow-filter">
+            <span class="filter-field__label">{{ t('workflow.table.column.status') }}</span>
+            <a-select
+              v-model:value="filters.status"
+              :placeholder="t('workflow.search.status')"
+              allow-clear
+            >
+              <a-select-option :value="0">{{ t('workflow.status.paused') }}</a-select-option>
+              <a-select-option :value="1">{{ t('workflow.status.scheduling') }}</a-select-option>
+              <a-select-option :value="2">{{ t('workflow.status.error') }}</a-select-option>
+            </a-select>
+          </div>
+          <div class="filter-field workflow-filter">
+            <span class="filter-field__label">{{ t('workflow.search.taskType') }}</span>
+            <a-select
+              v-model:value="filters.taskType"
+              :placeholder="t('workflow.search.taskType')"
+              allow-clear
+            >
+              <a-select-option value="scheduled">{{ t('workflow.taskType.scheduled') }}</a-select-option>
+              <a-select-option value="manual">{{ t('workflow.taskType.manual') }}</a-select-option>
+            </a-select>
+          </div>
+          <div class="filter-field workflow-filter">
+            <span class="filter-field__label">{{ t('workflow.search.tag') }}</span>
+            <a-select
+              v-model:value="filters.tagId"
+              :placeholder="t('workflow.search.tag')"
+              allow-clear
+            >
+              <a-select-option value="none">{{ t('workflow.tag.none') }}</a-select-option>
+              <a-select-option v-for="tag in tagList" :key="tag.id" :value="tag.id">
+                <a-tag :color="tag.color || 'blue'" style="margin-right: 0">{{ tag.name }}</a-tag>
+              </a-select-option>
+            </a-select>
+          </div>
+          <div class="filter-field filter-field--actions">
+            <a-button @click="handleFilterChange">
+              {{ t('common.search') }}
+            </a-button>
+          </div>
+        </FilterBar>
 
         <div class="batch-bar">
           <div class="batch-actions">
@@ -81,77 +95,102 @@
             {{ t('workflow.batch.selected', { count: selectedRowKeys.length }) }}
           </span>
         </div>
-      </div>
 
-      <a-table
+        <a-table
+          class="app-shell-table"
           :columns="getColumns()"
           :data-source="tableData"
           :row-selection="rowSelection"
           row-key="id"
           :loading="loading"
           :pagination="pagination"
-          :scroll="{ y: 'calc(100vh - 470px)', x: 'max-content' }"
+          :scroll="{ x: 'max-content', y: '100vh' }"
           :locale="{ emptyText: loadError ? t('common.loadFailed') : t('common.empty') }"
           @change="handleTableChange"
-      >
+        >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
-            <a-space wrap>
+          <template v-if="column.key === 'tags'">
+            <a-space :size="4" wrap>
+              <a-tag
+                v-for="tag in (record.tags || [])"
+                :key="tag.id"
+                :color="tag.color || 'blue'"
+              >{{ tag.name }}</a-tag>
+              <span v-if="!record.tags || record.tags.length === 0" style="color: var(--app-text-soft)">-</span>
+            </a-space>
+          </template>
+          <template v-else-if="column.key === 'status'">
+            <span
+              class="status-pill"
+              :class="{
+                'status-pill--success': record.status === 1,
+                'status-pill--danger': record.status === 2,
+                'status-pill--warning': record.status === 0,
+              }"
+            >
+              {{
+                record.status === 1
+                  ? t('workflow.status.scheduling')
+                  : record.status === 2
+                    ? t('workflow.status.error')
+                    : t('workflow.status.paused')
+              }}
+            </span>
+          </template>
+          <template v-else-if="column.key === 'err_msg'">
+            <a-tooltip :title="record.err_msg || '-'">
+              <span class="workflow-ellipsis">{{ formatExecutionMessage(record.err_msg) }}</span>
+            </a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-space>
               <a-button
                   type="primary"
                   size="small"
                   :disabled="record.status === 1"
                   @click="handleEdit(record.data, record.id, record)"
-              >{{ t('workflow.action.edit') }}</a-button
-              >
+              >{{ t('workflow.action.edit') }}</a-button>
               <a-button
-                  type="default"
-                  size="small"
-                  @click="handleCopy(record)"
-              >{{ t('workflow.action.copy') }}</a-button
-              >
-              <a-button
+                  v-if="record.status !== 1"
                   type="default"
                   size="small"
                   class="success-button"
-                  :disabled="record.status === 1 || record.cron === 'manual'"
+                  :disabled="record.cron === 'manual'"
                   @click="handleRun(record.id)"
-              >{{ t('workflow.action.start') }}</a-button
-              >
+              >{{ t('workflow.action.start') }}</a-button>
               <a-button
+                  v-else
                   type="default"
                   size="small"
                   class="test-button"
-                  :disabled="record.status !== 1"
                   @click="handleStop(record.id)"
-              >{{ t('workflow.action.stop') }}</a-button
-              >
+              >{{ t('workflow.action.stop') }}</a-button>
               <a-button
                   type="default"
                   size="small"
                   class="success-button"
                   @click="handleRunOnce(record.id)"
-              >{{ t('workflow.action.runOnce') }}</a-button
-              >
-              <a-button
-                  type="default"
-                  size="small"
-                  @click="handleViewRecords(record)"
-              >{{ t('workflow.action.records') }}</a-button
-              >
-              <a-button
-                  type="default"
-                  class="error-button"
-                  size="small"
-                  :disabled="record.status === 1"
-                  @click="handleDelete(record.id)"
-              >{{ t('workflow.action.delete') }}</a-button
-              >
+              >{{ t('workflow.action.runOnce') }}</a-button>
+              <a-dropdown>
+                <a-button size="small">{{ t('workflow.action.more') }} ▾</a-button>
+                <template #overlay>
+                  <a-menu>
+                    <a-menu-item @click="handleCopy(record)">{{ t('workflow.action.copy') }}</a-menu-item>
+                    <a-menu-item @click="handlePreviewTask(record.id)">{{ t('missionConfig.preview.btn') }}</a-menu-item>
+                    <a-menu-item @click="handleViewRecords(record)">{{ t('workflow.action.records') }}</a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item :disabled="record.status === 1" @click="record.status !== 1 && handleDelete(record.id)">
+                      <span :class="record.status !== 1 ? 'text-danger' : ''">{{ t('workflow.action.delete') }}</span>
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
             </a-space>
           </template>
         </template>
-      </a-table>
-    </a-card>
+        </a-table>
+      </div>
+    </ContentCard>
 
     <!-- 新增或编辑弹窗 -->
     <MissionConfigModal
@@ -165,6 +204,30 @@
         @success="fetchData"
         @templateSaved="fetchTemplates"
     />
+    <!-- 数据预览弹窗 -->
+    <a-modal
+        v-model:open="previewVisible"
+        :title="t('missionConfig.preview.modalTitle')"
+        width="80vw"
+        :footer="null"
+        :destroy-on-close="true"
+    >
+      <a-spin :spinning="previewLoading">
+        <div v-if="!previewLoading && previewColumns.length === 0" style="text-align:center;padding:40px;color:#939393;">
+          {{ t('missionConfig.preview.empty') }}
+        </div>
+        <a-table
+            v-else
+            :columns="previewColumns"
+            :data-source="previewRows"
+            :row-key="'_key'"
+            :scroll="{ x: 'max-content', y: 400 }"
+            size="small"
+            :pagination="false"
+        />
+      </a-spin>
+    </a-modal>
+
     <a-modal
         v-model:open="templateModal.visible"
         :title="t('workflow.template.modalTitle')"
@@ -195,7 +258,83 @@
         </template>
       </a-table>
     </a-modal>
-  </div>
+
+    <!-- 标签管理弹窗 -->
+    <a-modal
+        v-model:open="tagManageModal.visible"
+        :title="t('workflow.tag.manage.title')"
+        :footer="null"
+        :width="isNarrowScreen ? '96vw' : '600px'"
+    >
+      <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+        <a-input
+            v-model:value="tagManageModal.newName"
+            :placeholder="t('workflow.tag.name.placeholder')"
+            style="flex: 1"
+            @pressEnter="handleAddTag"
+        />
+        <a-input
+            v-model:value="tagManageModal.newColor"
+            placeholder="#1890ff"
+            style="width: 120px"
+            type="color"
+        />
+        <a-button type="primary" @click="handleAddTag">
+          {{ t('workflow.tag.add') }}
+        </a-button>
+      </div>
+      <a-table
+          :columns="tagManageColumns"
+          :data-source="tagList"
+          row-key="id"
+          :pagination="false"
+          size="small"
+          :locale="{ emptyText: t('common.empty') }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'name'">
+            <a-input
+                v-if="tagManageModal.editingId === record.id"
+                v-model:value="tagManageModal.editName"
+                size="small"
+                @pressEnter="handleSaveTag(record)"
+            />
+            <span v-else>{{ record.name }}</span>
+          </template>
+          <template v-else-if="column.key === 'color'">
+            <a-input
+                v-if="tagManageModal.editingId === record.id"
+                v-model:value="tagManageModal.editColor"
+                size="small"
+                type="color"
+                style="width: 60px"
+            />
+            <a-tag v-else :color="record.color || 'blue'">{{ record.name }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-space>
+              <template v-if="tagManageModal.editingId === record.id">
+                <a-button size="small" type="primary" @click="handleSaveTag(record)">
+                  {{ t('common.save') }}
+                </a-button>
+                <a-button size="small" @click="tagManageModal.editingId = ''">
+                  {{ t('common.cancel') }}
+                </a-button>
+              </template>
+              <template v-else>
+                <a-button size="small" @click="handleEditTag(record)">
+                  {{ t('common.edit') }}
+                </a-button>
+                <a-button size="small" danger @click="handleDeleteTag(record.id)">
+                  {{ t('common.delete') }}
+                </a-button>
+              </template>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+    </a-modal>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -210,7 +349,11 @@ import {
   runTaskOnce,
   getTaskTemplates,
   deleteTaskTemplate,
+  previewTask,
 } from "../api/mission";
+import { getTagList, addTag, updateTag, deleteTag } from "../api/tag";
+import type { Tag } from "../api/tag";
+import { TagsOutlined } from "@ant-design/icons-vue";
 import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import MissionConfigModal from "../components/MissionConfigModal.vue";
@@ -227,11 +370,86 @@ const handleResize = () => {
 
 const loading = ref(false);
 const loadError = ref(false);
+const formatExecutionMessage = (value?: string) => {
+  if (!value) return "-";
+  return value.length > 48 ? `${value.slice(0, 48)}...` : value;
+};
 const filters = ref({
   keyword: "",
   status: undefined as number | undefined,
   taskType: undefined as "scheduled" | "manual" | undefined,
+  tagId: undefined as string | undefined,
 });
+const tagList = ref<Tag[]>([]);
+const fetchTagList = () => {
+  getTagList().then((res: any) => {
+    tagList.value = res.data || [];
+  });
+};
+
+// 标签管理
+const tagManageModal = ref({
+  visible: false,
+  newName: "",
+  newColor: "#1890ff",
+  editingId: "",
+  editName: "",
+  editColor: "",
+});
+
+const tagManageColumns = [
+  { title: t('workflow.tag.name'), dataIndex: "name", key: "name", align: "center" as const },
+  { title: t('workflow.tag.color'), dataIndex: "color", key: "color", align: "center" as const, width: 120 },
+  { title: t('workflow.tag.actions'), key: "action", align: "center" as const, width: 180 },
+];
+
+const handleAddTag = () => {
+  const name = tagManageModal.value.newName.trim();
+  if (!name) return;
+  addTag({ name, color: tagManageModal.value.newColor }).then((res: any) => {
+    if (res.code === 0) {
+      message.success(t('workflow.tag.add.success'));
+      tagManageModal.value.newName = "";
+      tagManageModal.value.newColor = "#1890ff";
+      fetchTagList();
+    }
+  });
+};
+
+const handleEditTag = (record: any) => {
+  tagManageModal.value.editingId = record.id;
+  tagManageModal.value.editName = record.name;
+  tagManageModal.value.editColor = record.color || "#1890ff";
+};
+
+const handleSaveTag = (record: any) => {
+  const name = tagManageModal.value.editName.trim();
+  if (!name) return;
+  updateTag(record.id, { name, color: tagManageModal.value.editColor }).then((res: any) => {
+    if (res.code === 0) {
+      message.success(t('workflow.tag.edit.success'));
+      tagManageModal.value.editingId = "";
+      fetchTagList();
+      fetchData();
+    }
+  });
+};
+
+const handleDeleteTag = (id: string) => {
+  Modal.confirm({
+    title: t('common.delete'),
+    content: t('workflow.tag.delete.confirm'),
+    onOk: () => {
+      deleteTag(id).then((res: any) => {
+        if (res.code === 0) {
+          message.success(t('workflow.tag.delete.success'));
+          fetchTagList();
+          fetchData();
+        }
+      });
+    },
+  });
+};
 const pagination = ref<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
@@ -247,6 +465,13 @@ const getColumns = (): any[] => [
     key: "mission_name",
     align: "center",
     width: 230,
+  },
+  {
+    title: t('workflow.table.column.tags'),
+    dataIndex: "tags",
+    key: "tags",
+    align: "center",
+    width: 200,
   },
   {
     title: t('workflow.table.column.isRunning'),
@@ -281,6 +506,7 @@ const getColumns = (): any[] => [
     dataIndex: "err_msg",
     key: "err_msg",
     align: "center",
+    width: 260,
   },
   {
     title: t('workflow.table.column.lastEndTime'),
@@ -311,7 +537,7 @@ const getColumns = (): any[] => [
     key: "action",
     align: "center",
     fixed: "right",
-    width: 610,
+    width: 300,
   },
 ];
 
@@ -361,6 +587,7 @@ const fetchData = () => {
     search: filters.value.keyword || undefined,
     status: filters.value.status,
     tasktypes: filters.value.taskType,
+    tag_id: filters.value.tagId,
   }).then((res: any) => {
     tableData.value = res.data?.list || [];
     pagination.value.total = res.data?.total || 0;
@@ -587,6 +814,34 @@ const handleRun = (id: string) => {
   });
 };
 
+// 数据预览
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewColumns = ref<{ title: string; dataIndex: string; key: string; ellipsis: boolean }[]>([])
+const previewRows = ref<Record<string, any>[]>([])
+
+const handlePreviewTask = async (id: string) => {
+  if (!id) return
+  previewLoading.value = true
+  previewVisible.value = true
+  previewColumns.value = []
+  previewRows.value = []
+  try {
+    const res = await previewTask(id)
+    if (res.code === 0) {
+      previewColumns.value = (res.data.columns || []).map((col: string) => ({
+        title: col,
+        dataIndex: col,
+        key: col,
+        ellipsis: true,
+      }))
+      previewRows.value = (res.data.rows || []).map((row: Record<string, any>, i: number) => ({ ...row, _key: i }))
+    }
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 // 停止任务
 const handleStop = (id: string) => {
   if (!id) return;
@@ -629,6 +884,7 @@ onMounted(() => {
   window.addEventListener("resize", handleResize);
   fetchData();
   fetchTemplates();
+  fetchTagList();
 });
 
 onUnmounted(() => {
@@ -637,31 +893,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.workflow-container {
-  padding: 20px;
-
-  .main-card {
-    border-radius: 4px;
-  }
-
-  .table-operations {
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-  }
+.table-toolbar {
+  margin-bottom: -4px;
 }
 
-.workflow-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+.table-toolbar__right {
+  margin-left: auto;
 }
 
-.filter-bar {
-  display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(180px, 1fr));
-  gap: 12px;
+.workflow-filter {
+  width: 210px;
+}
+
+.workflow-filter--wide {
+  width: 320px;
 }
 
 .batch-bar {
@@ -678,41 +923,33 @@ onUnmounted(() => {
 }
 
 .selection-hint {
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 14px;
   white-space: nowrap;
 }
 
+.workflow-ellipsis {
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 @media (max-width: 768px) {
-  .workflow-container {
-    padding: 12px;
-  }
-
-  .workflow-container .table-operations {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .workflow-container .left,
-  .workflow-container .right {
-    width: 100%;
-  }
-
-  .filter-bar {
-    grid-template-columns: 1fr;
-  }
-
   .batch-bar,
   .batch-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .workflow-container :deep(.filter-bar .ant-input),
-  .workflow-container :deep(.filter-bar .ant-select),
-  .workflow-container :deep(.table-operations .ant-btn),
-  .batch-actions :deep(.ant-btn) {
-    width: 100% !important;
+  .workflow-filter {
+    width: 190px;
+  }
+
+  .workflow-filter--wide {
+    width: 260px;
   }
 
   .selection-hint {

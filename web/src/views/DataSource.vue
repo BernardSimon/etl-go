@@ -1,104 +1,91 @@
 <template>
-  <div class="data-source-container">
-    <a-card :bordered="false">
-      <div class="table-operations">
-        <div class="left">
-          <a-space>
-          <a-button type="primary" @click="handleOpenAddDialog">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            {{ $t("datasource.add.title") }}
-          </a-button>
-          </a-space>
+  <PageContainer>
+    <ContentCard>
+      <div class="section-stack">
+        <div class="table-toolbar">
+          <div class="table-toolbar__right">
+            <a-button @click="fetchDataSourceList">
+              <template #icon><ReloadOutlined /></template>
+              {{ t("common.refresh") }}
+            </a-button>
+            <a-button type="primary" @click="handleOpenAddDialog">
+              <template #icon><PlusOutlined /></template>
+              {{ $t("datasource.add.title") }}
+            </a-button>
+          </div>
         </div>
-        <div class="right">
-          <a-button
-            shape="circle"
-            :title="t('common.refresh')"
-            :aria-label="t('common.refresh')"
-            @click="fetchDataSourceList"
-          >
-            <template #icon>
-              <ReloadOutlined />
-            </template>
-          </a-button>
-        </div>
-      </div>
 
-      <a-space class="filter-bar" style="margin-bottom: 16px" wrap>
-        <a-input
-          v-model:value="filters.keyword"
-          :placeholder="t('datasource.search.keyword')"
-          allow-clear
-          style="width: 220px"
-        />
-        <a-select
-          v-model:value="filters.type"
-          :placeholder="t('datasource.search.type')"
-          allow-clear
-          style="width: 180px"
-        >
-          <a-select-option
-            v-for="item in dataSourceTypeList"
-            :key="item.type"
-            :value="item.type"
-          >
-            {{ item.type }}
-          </a-select-option>
-        </a-select>
-      </a-space>
+        <FilterBar>
+          <div class="filter-field datasource-filter datasource-filter--wide">
+            <span class="filter-field__label">{{ t('datasource.name.label') }}</span>
+            <a-input
+              v-model:value="filters.keyword"
+              :placeholder="t('datasource.search.keyword')"
+              allow-clear
+              @pressEnter="handleFilterChange"
+            />
+          </div>
+          <div class="filter-field datasource-filter">
+            <span class="filter-field__label">{{ t('datasource.type.label') }}</span>
+            <a-select
+              v-model:value="filters.type"
+              :placeholder="t('datasource.search.type')"
+              allow-clear
+            >
+              <a-select-option v-for="item in dataSourceTypeList" :key="item.type" :value="item.type">
+                {{ item.type }}
+              </a-select-option>
+            </a-select>
+          </div>
+          <div class="filter-field filter-field--actions">
+            <a-button @click="handleFilterChange">
+              {{ t("common.search") }}
+            </a-button>
+          </div>
+        </FilterBar>
 
-      <a-table
+        <a-table
+          class="app-shell-table"
           :columns="getColumns()"
           :data-source="filteredTableData"
-          bordered
           row-key="id"
           :loading="loading"
-          :scroll="{ y: 'calc(100vh - 470px)', x: 'max-content' }"
+          :scroll="{ x: 'max-content', y: '100vh' }"
           :locale="{ emptyText: loadError ? t('common.loadFailed') : t('common.empty') }"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
-            <a-space>
-              <a-button
-                  type="primary"
-                  class="edit-button"
-                  size="small"
-                  @click="handleEdit(record)"
-              >{{ $t("datasource.action.edit") }}</a-button
-              >
-              <a-button
-                  size="small"
-                  @click="handleClone(record)"
-              >{{ $t("datasource.action.clone") }}</a-button
-              >
-              <a-button
-                  type="primary"
-                  danger
-                  class="delete-button"
-                  size="small"
-                  @click="handleDelete(record)"
-              >{{ $t("datasource.action.delete") }}</a-button
-              >
-            </a-space>
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'type'">
+              <span class="status-pill">{{ record.type }}</span>
+            </template>
+            <template v-else-if="column.key === 'action'">
+              <a-space wrap>
+                <a-button type="primary" size="small" @click="handleEdit(record)">
+                  {{ $t("datasource.action.edit") }}
+                </a-button>
+                <a-button size="small" @click="handleClone(record)">
+                  {{ $t("datasource.action.clone") }}
+                </a-button>
+                <a-button type="primary" danger size="small" @click="handleDelete(record)">
+                  {{ $t("datasource.action.delete") }}
+                </a-button>
+              </a-space>
+            </template>
           </template>
-        </template>
-      </a-table>
-    </a-card>
+        </a-table>
+      </div>
+    </ContentCard>
 
-    <a-modal
+    <a-drawer
         v-model:open="addDataSourceDialog.show"
         :title="addDataSourceDialog.title"
-        width="720px"
-        @cancel="handleCancel"
+        :width="drawerWidth"
+        @close="handleCancel"
     >
       <a-form
           ref="addDataSourceFormRef"
           :model="addDataSourceDialog.form"
           :rules="formRules"
-          :label-col="{ span: 4 }"
-          :wrapper-col="{ span: 19 }"
+          layout="vertical"
       >
         <a-form-item :label="$t('datasource.name.label')" name="name">
           <a-input
@@ -195,7 +182,7 @@
           </a-button>
         </a-space>
       </template>
-    </a-modal>
+    </a-drawer>
     <FileLibraryModal
       v-model:open="fileLibraryOpen"
       :multiple="activeFileParamMultiple"
@@ -203,7 +190,7 @@
       :title="t('datasource.fileSelector.modalTitle')"
       @confirm="handleFileLibraryConfirm"
     />
-  </div>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -228,8 +215,10 @@ import {RuleObject} from "ant-design-vue/es/form";
 import { ApiRequestError } from "../utils/request";
 import { getFileList } from "../api/file";
 import FileLibraryModal from "../components/FileLibraryModal.vue";
+import { useResponsive } from "../composables/useResponsive";
 
 const { t } = useI18n();
+const { isMobile } = useResponsive();
 
 interface DataSourceParam {
   key: string;
@@ -284,15 +273,28 @@ const filters = ref({
   keyword: "",
   type: undefined as string | undefined,
 });
+const appliedFilters = ref({
+  keyword: "",
+  type: undefined as string | undefined,
+});
 
 const filteredTableData = computed(() => {
   return tableData.value.filter((item) => {
-    const matchKeyword = !filters.value.keyword ||
-      item.name?.toLowerCase().includes(filters.value.keyword.toLowerCase());
-    const matchType = !filters.value.type || item.type === filters.value.type;
+    const matchKeyword = !appliedFilters.value.keyword ||
+      item.name?.toLowerCase().includes(appliedFilters.value.keyword.toLowerCase());
+    const matchType = !appliedFilters.value.type || item.type === appliedFilters.value.type;
     return matchKeyword && matchType;
   });
 });
+
+const drawerWidth = computed(() => (isMobile.value ? "100%" : "760px"));
+
+const handleFilterChange = () => {
+  appliedFilters.value = {
+    keyword: filters.value.keyword.trim(),
+    type: filters.value.type,
+  };
+};
 
 const isMaskParam = (param: DataSourceParam) => !!param.mask;
 const isFileParam = (param: DataSourceParam) => String(param.key || "").includes("file_id");
@@ -396,7 +398,7 @@ const getColumns = (): any[] => {
       title: t("datasource.action.label"),
       key: "action",
       align: "center",
-      width: 150,
+      width: 200,
       fixed: "right",
     },
   ];
@@ -634,14 +636,20 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.data-source-container {
-  padding: 20px;
+.table-toolbar {
+  margin-bottom: -4px;
 }
 
-.table-operations {
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
+.table-toolbar__right {
+  margin-left: auto;
+}
+
+.datasource-filter {
+  width: 220px;
+}
+
+.datasource-filter--wide {
+  width: 320px;
 }
 
 .file-param-field {
@@ -688,34 +696,16 @@ onMounted(() => {
 
 .required {
   margin-right: 6px;
-  color: #ff4d4f;
+  color: var(--app-danger);
 }
 
 @media (max-width: 768px) {
-  .data-source-container {
-    padding: 12px;
+  .datasource-filter {
+    width: 200px;
   }
 
-  .table-operations {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .data-source-container :deep(.filter-bar),
-  .data-source-container .left,
-  .data-source-container .right {
-    width: 100%;
-  }
-
-  .data-source-container :deep(.filter-bar .ant-space-item),
-  .data-source-container :deep(.table-operations .ant-space-item) {
-    flex: 1 1 100%;
-  }
-
-  .data-source-container :deep(.filter-bar .ant-input),
-  .data-source-container :deep(.filter-bar .ant-select),
-  .data-source-container :deep(.table-operations .ant-btn) {
-    width: 100% !important;
+  .datasource-filter--wide {
+    width: 260px;
   }
 }
 </style>

@@ -17,6 +17,7 @@ export const getTaskAll = (params?: {
   mission_name?: string;
   status?: number;
   tasktypes?: "manual" | "scheduled";
+  tag_id?: string;
 }) => {
   return request.get<ApiResponse<{
     list: any[];

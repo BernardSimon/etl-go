@@ -87,6 +87,10 @@ func (d *DataSource) Init(config map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("doris: failed to open mysql connection: %w", err)
 	}
+	if err = datasource.ConfigureSQLDBPoolFromConfig(d.db, config); err != nil {
+		_ = d.db.Close()
+		return fmt.Errorf("doris: failed to configure connection pool: %w", err)
+	}
 	if err = d.db.Ping(); err != nil {
 		return fmt.Errorf("doris: failed to connect via mysql protocol: %w", err)
 	}

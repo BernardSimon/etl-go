@@ -52,7 +52,7 @@ func MigrateDb() error {
 		}
 	}
 
-	return DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &TaskTemplate{}, &File{}, &TaskRecordFile{})
+	return DB.AutoMigrate(&DataSource{}, &Variable{}, &Task{}, &TaskRecord{}, &TaskTemplate{}, &File{}, &TaskRecordFile{}, &UploadSession{}, &Tag{}, &TaskTag{})
 }
 
 func copyFile(src, dst string) error {

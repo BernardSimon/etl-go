@@ -1,11 +1,56 @@
-// Tailwind CSS 基础样式
 @tailwind base;
-// Tailwind CSS 组件样式
 @tailwind components;
-// Tailwind CSS 工具类样式
 @tailwind utilities;
 
-// 全局样式
+:root {
+  color-scheme: light;
+  --app-font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --app-bg: #f4f7fb;
+  --app-bg-elevated: rgba(255, 255, 255, 0.84);
+  --app-bg-soft: rgba(255, 255, 255, 0.62);
+  --app-surface: #ffffff;
+  --app-surface-strong: #ffffff;
+  --app-surface-muted: #edf2fb;
+  --app-border: rgba(33, 52, 89, 0.1);
+  --app-border-strong: rgba(33, 52, 89, 0.16);
+  --app-text: #152033;
+  --app-text-soft: #53627b;
+  --app-text-faint: #7d8aa1;
+  --app-primary: #2f6fed;
+  --app-primary-soft: rgba(47, 111, 237, 0.12);
+  --app-success: #2d9d78;
+  --app-warning: #d7922a;
+  --app-danger: #d75c57;
+  --app-shadow-lg: 0 24px 70px rgba(17, 35, 68, 0.12);
+  --app-shadow-md: 0 12px 30px rgba(17, 35, 68, 0.08);
+  --app-radius-xl: 16px;
+  --app-radius-lg: 12px;
+  --app-radius-md: 10px;
+  --app-radius-sm: 8px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #08111f;
+  --app-bg-elevated: rgba(9, 18, 34, 0.84);
+  --app-bg-soft: rgba(16, 28, 49, 0.76);
+  --app-surface: #0e1a2d;
+  --app-surface-strong: #13233d;
+  --app-surface-muted: #101d31;
+  --app-border: rgba(134, 164, 214, 0.16);
+  --app-border-strong: rgba(134, 164, 214, 0.24);
+  --app-text: #edf3ff;
+  --app-text-soft: #b1c0db;
+  --app-text-faint: #7f90b2;
+  --app-primary: #6ea3ff;
+  --app-primary-soft: rgba(110, 163, 255, 0.18);
+  --app-success: #46be96;
+  --app-warning: #f1b553;
+  --app-danger: #f27a74;
+  --app-shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.42);
+  --app-shadow-md: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -19,39 +64,426 @@ body,
   height: 100%;
 }
 
-// 滚动条样式
+html,
+body {
+  color: var(--app-text);
+  font-family: var(--app-font-family);
+  transition: color 0.3s ease;
+}
+
+body {
+  position: relative;
+  background: transparent;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(47, 111, 237, 0.12), transparent 28%),
+    radial-gradient(circle at right 20%, rgba(45, 157, 120, 0.1), transparent 24%),
+    var(--app-bg);
+  transition: background-color 0.3s ease, opacity 0.3s ease;
+}
+
+a {
+  color: inherit;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #ddd;
+  background-color: var(--app-border-strong);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #bbb;
+  background-color: var(--app-text-faint);
 }
 
 ::-webkit-scrollbar-track {
-  background-color: #f5f5f5;
+  background-color: transparent;
+}
+
+.app-ghost {
+  background: var(--app-bg-elevated);
+  border: 1px solid var(--app-border);
+  backdrop-filter: blur(16px);
+}
+
+.page-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.page-header__copy {
+  max-width: 720px;
+}
+
+.page-header__title {
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.surface-card {
+  border-radius: var(--app-radius-lg);
+  background: var(--app-bg-elevated);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-md);
+  backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.surface-card--padded {
+  padding: 16px 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  padding: 20px;
+  border-radius: var(--app-radius-md);
+  background: linear-gradient(180deg, var(--app-surface-strong), var(--app-surface));
+  border: 1px solid var(--app-border);
+}
+
+.stat-card__label {
+  color: var(--app-text-soft);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.stat-card__value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stat-card__value {
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.stat-card__hint {
+  color: var(--app-text-faint);
+  font-size: 12px;
+}
+
+.filter-bar-panel {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 4px 0 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.filter-bar-panel > * {
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-field__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-text-soft);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding-left: 2px;
+}
+
+.filter-field--actions {
+  margin-left: auto;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  justify-content: flex-end;
+}
+
+.panel-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+
+.table-toolbar__left,
+.table-toolbar__right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.table-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
+.status-pill--success {
+  background: rgba(45, 157, 120, 0.12);
+  color: var(--app-success);
+}
+
+.status-pill--warning {
+  background: rgba(215, 146, 42, 0.12);
+  color: var(--app-warning);
+}
+
+.status-pill--danger {
+  background: rgba(215, 92, 87, 0.12);
+  color: var(--app-danger);
 }
 
 .test-button {
-  background-color: #faad14;
-  border-color: #faad14;
+  background-color: var(--app-warning);
+  border-color: var(--app-warning);
   color: #fff;
 }
 
 .success-button {
-  background-color: #52c41a;
-  border-color: #52c41a;
+  background-color: var(--app-success);
+  border-color: var(--app-success);
   color: #fff;
 }
 
 .error-button {
-  background-color: #ff4d4f;
-  border-color: #ff4d4f;
+  background-color: var(--app-danger);
+  border-color: var(--app-danger);
   color: #fff;
+}
+
+.app-shell-table :deep(.ant-table),
+.app-shell-table .ant-table {
+  background: transparent;
+}
+
+.app-shell-table :deep(.ant-table-thead > tr > th),
+.app-shell-table .ant-table-thead > tr > th {
+  background: transparent;
+  color: var(--app-text-soft);
+  border-bottom-color: var(--app-border);
+  font-weight: 700;
+}
+
+.app-shell-table :deep(.ant-table-tbody > tr > td),
+.app-shell-table .ant-table-tbody > tr > td {
+  border-bottom-color: var(--app-border);
+  background: transparent;
+  color: var(--app-text);
+}
+
+// ── Flex-fill table: makes the table fill available container height ─────────
+.section-stack > .app-shell-table,
+.surface-card > .app-shell-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-table .ant-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-table .ant-spin-nested-loading,
+.app-shell-table .ant-spin-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-table .ant-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-table .ant-table-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-table .ant-table-body {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  max-height: none !important;
+}
+
+.app-shell-table .ant-table-pagination {
+  flex: 0 0 auto;
+  margin: 10px 0 0 !important;
+}
+
+.ant-card,
+.ant-dropdown-menu,
+.ant-menu-submenu-popup .ant-menu,
+.ant-select-dropdown,
+.ant-picker-panel-container,
+.ant-table-wrapper .ant-table-container,
+.ant-layout-sider {
+  background: var(--app-bg-elevated) !important;
+  border-color: var(--app-border) !important;
+}
+
+.ant-modal-content,
+.ant-drawer-content {
+  background: var(--app-surface-strong) !important;
+  border: 1px solid var(--app-border-strong) !important;
+  box-shadow: var(--app-shadow-lg) !important;
+  backdrop-filter: none !important;
+}
+
+.ant-modal-header,
+.ant-modal-body,
+.ant-modal-footer,
+.ant-drawer-header,
+.ant-drawer-body,
+.ant-drawer-footer {
+  background: var(--app-surface-strong) !important;
+  border-color: var(--app-border-strong) !important;
+  backdrop-filter: none !important;
+}
+
+.ant-modal-title,
+.ant-drawer-title,
+.ant-modal-close,
+.ant-modal-close-x,
+.ant-drawer-close {
+  color: var(--app-text) !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-select-selector,
+.ant-picker,
+.ant-input-password,
+.ant-input-search .ant-input-group-addon .ant-btn,
+.ant-btn:not(.ant-btn-primary):not(.success-button):not(.test-button):not(.error-button) {
+  border-radius: 14px !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-select-selector,
+.ant-picker,
+.ant-input-password,
+.ant-input-textarea textarea {
+  background: var(--app-surface-muted) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text) !important;
+}
+
+.ant-btn-default,
+.ant-btn-dashed {
+  background: var(--app-surface-muted) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text) !important;
+}
+
+.ant-layout {
+  background: transparent !important;
+}
+
+@media (max-width: 1199px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .page-shell {
+    gap: 18px;
+  }
+
+  .surface-card--padded {
+    padding: 18px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-bar-panel {
+    padding: 2px 0;
+  }
 }

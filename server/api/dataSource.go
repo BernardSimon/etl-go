@@ -5,6 +5,7 @@ import (
 
 	"github.com/BernardSimon/etl-go/etl/factory"
 	"github.com/BernardSimon/etl-go/etl/pipeline"
+	serverConfig "github.com/BernardSimon/etl-go/server/config"
 	"github.com/BernardSimon/etl-go/server/model"
 	types "github.com/BernardSimon/etl-go/server/types"
 	fileUtil "github.com/BernardSimon/etl-go/server/utils/file"
@@ -95,16 +96,17 @@ func TestDataSource(_ *struct{}, body *types.TestDataSourceRequest, lang string)
 		}
 	}
 
-	config := keyValuesToMap(body.Data)
-	if err := resolveDatasourceConfig(config); err != nil {
+	dsConfig := keyValuesToMap(body.Data)
+	if err := resolveDatasourceConfig(dsConfig); err != nil {
 		return nil, err
 	}
+	serverConfig.ApplyDatasourcePoolConfig(dsConfig)
 	for _, v := range store.Params {
-		if v.Required && config[v.Key] == "" {
+		if v.Required && dsConfig[v.Key] == "" {
 			return nil, errors.New("datasource params error")
 		}
 	}
-	if err := store.Handle.Init(config); err != nil {
+	if err := store.Handle.Init(dsConfig); err != nil {
 		return nil, errors.New("failed to test datasource connection")
 	}
 	_ = store.Handle.Close()
@@ -199,25 +201,26 @@ func GetDataSourceSchema(uri *types.IDUri, _ *struct{}, _ string) (interface{}, 
 	}
 
 	// 构建配置 map
-	config := make(map[string]string, len(ds.Data))
+	dsConfig := make(map[string]string, len(ds.Data))
 	for _, kv := range ds.Data {
-		config[kv.Key] = kv.Value
+		dsConfig[kv.Key] = kv.Value
 	}
 	// 解析 file_id → file_path（SQLite 需要）
-	if err := resolveDatasourceConfig(config); err != nil {
+	if err := resolveDatasourceConfig(dsConfig); err != nil {
 		return nil, err
 	}
 	// 处理 HandleInternalConfig 中的 file_id 逻辑（与 pipeline 保持一致）
-	if _, err := pipeline.HandleInternalConfig(&config); err != nil {
+	if _, err := pipeline.HandleInternalConfig(&dsConfig); err != nil {
 		return nil, err
 	}
+	serverConfig.ApplyDatasourcePoolConfig(dsConfig)
 
 	// 创建并初始化 datasource 实例
 	store, err := factory.CreateDataSource(ds.Type)
 	if err != nil {
 		return nil, errors.New("unsupported datasource type")
 	}
-	if err := store.Handle.Init(config); err != nil {
+	if err := store.Handle.Init(dsConfig); err != nil {
 		return nil, errors.New("failed to connect to datasource")
 	}
 	defer store.Handle.Close()

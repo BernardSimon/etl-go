@@ -3,6 +3,7 @@ package datasource
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,4 +67,50 @@ func TestAsConfigMap_ReturnsErrorForInvalidDatasource(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ConfigMapProvider")
+}
+
+func TestConfigureSQLDBPool_SetsDefaults(t *testing.T) {
+	db := &sql.DB{}
+
+	err := ConfigureSQLDBPool(db)
+
+	require.NoError(t, err)
+	stats := db.Stats()
+	assert.Equal(t, defaultMaxOpenConns, stats.MaxOpenConnections)
+	assert.GreaterOrEqual(t, db.Stats().Idle, 0)
+}
+
+func TestConfigureSQLDBPool_ReturnsErrorForNilDB(t *testing.T) {
+	err := ConfigureSQLDBPool(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sql db is nil")
+}
+
+func TestDefaultConnMaxLifetime_IsPositive(t *testing.T) {
+	assert.Equal(t, 5*time.Minute, defaultConnMaxLifetime)
+}
+
+func TestConfigureSQLDBPoolFromConfig_UsesOverrides(t *testing.T) {
+	db := &sql.DB{}
+
+	err := ConfigureSQLDBPoolFromConfig(db, map[string]string{
+		"__pool_max_open_conns":     "7",
+		"__pool_max_idle_conns":     "3",
+		"__pool_conn_max_lifetime":  "120",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 7, db.Stats().MaxOpenConnections)
+}
+
+func TestConfigureSQLDBPoolFromConfig_ReturnsErrorForInvalidOverride(t *testing.T) {
+	db := &sql.DB{}
+
+	err := ConfigureSQLDBPoolFromConfig(db, map[string]string{
+		"__pool_max_open_conns": "abc",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "__pool_max_open_conns")
 }

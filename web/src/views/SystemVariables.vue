@@ -1,55 +1,48 @@
 <template>
-  <div class="system-variables-container">
-    <a-card :bordered="false">
-      <div class="table-operations">
-        <div class="left">
-          <a-button type="primary" @click="handleOpenAddDialog">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            {{ t('systemVariable.add.button') }}
+  <PageContainer>
+    <ContentCard>
+      <div class="table-toolbar">
+        <div class="table-toolbar__right">
+          <a-button @click="fetchVariableList">
+            <template #icon><ReloadOutlined /></template>
+            {{ t("common.refresh") }}
           </a-button>
-        </div>
-        <div class="right">
-          <a-button
-            shape="circle"
-            :title="t('common.refresh')"
-            :aria-label="t('common.refresh')"
-            @click="fetchVariableList"
-          >
-            <template #icon>
-              <ReloadOutlined />
-            </template>
+          <a-button type="primary" @click="handleOpenAddDialog">
+            <template #icon><PlusOutlined /></template>
+            {{ t('systemVariable.add.button') }}
           </a-button>
         </div>
       </div>
 
-      <a-table :columns="getColumns()" :data-source="tableData" bordered row-key="id" :loading="loading"
-               :scroll="{ y: 'calc(100vh - 470px)', x: 'max-content' }">
+      <a-table
+        class="app-shell-table"
+        :columns="getColumns()"
+        :data-source="tableData"
+        row-key="id"
+        :loading="loading"
+        :scroll="{ x: 'max-content', y: '100vh' }"
+      >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
-            <a-space>
+          <template v-if="column.key === 'type'">
+            <span class="status-pill">{{ record.type }}</span>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-space wrap>
               <a-button type="primary" size="small" @click="handleEdit(record)">{{ t('systemVariable.edit.title') }}</a-button>
               <a-button size="small" class="test-button" @click="handleTest(record)">{{ t('systemVariable.test.button') }}</a-button>
               <a-button size="small" type="primary" danger @click="handleDelete(record)">{{ t('systemVariable.delete.title') }}</a-button>
             </a-space>
           </template>
-          <template v-if ="column.key === 'datasource'">
-            <div>
-              {{
-                getDatasourceNameById(record.datasource_id, record.type)
-              }}
-            </div>
+          <template v-else-if="column.key === 'datasource'">
+            {{ getDatasourceNameById(record.datasource_id, record.type) }}
           </template>
         </template>
       </a-table>
-    </a-card>
+    </ContentCard>
 
     <!-- 新增/编辑系统变量弹窗 -->
-    <a-modal v-model:open="variableDialog.show" :title="variableDialog.title" width="600px" @ok="handleSaveVariable"
-             @cancel="variableDialog.show = false">
-      <a-form ref="variableFormRef" :model="variableDialog.data" :rules="variableRules" :label-col="{ span: 6 }"
-              :wrapper-col="{ span: 17 }">
+    <a-drawer v-model:open="variableDialog.show" :title="variableDialog.title" :width="drawerWidth" @close="variableDialog.show = false">
+      <a-form ref="variableFormRef" :model="variableDialog.data" :rules="variableRules" layout="vertical">
         <a-form-item :label="t('systemVariable.form.name.label')" name="name">
           <a-input v-model:value="variableDialog.data.name" :placeholder="t('systemVariable.form.name.placeholder')" />
         </a-form-item>
@@ -106,8 +99,14 @@
           <a-textarea v-model:value="variableDialog.data.description" :placeholder="t('systemVariable.form.description.placeholder')" :rows="2" />
         </a-form-item>
       </a-form>
-    </a-modal>
-  </div>
+      <template #footer>
+        <a-space>
+          <a-button @click="variableDialog.show = false">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" @click="handleSaveVariable">{{ t('common.save') }}</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -127,8 +126,10 @@ import { useI18n } from "vue-i18n";
 import type { VariableTypeListItem } from "../api/systemVariables";
 import {SelectValue} from "ant-design-vue/es/select";
 import { ApiRequestError } from "../utils/request";
+import { useResponsive } from "../composables/useResponsive";
 
 const { t } = useI18n();
+const { isMobile } = useResponsive();
 
 // 变量类型列表
 const variableTypeList = ref<VariableTypeListItem[]>([]);
@@ -145,6 +146,7 @@ const showDataSourceSelector = computed(() => {
 // 系统变量表格数据
 const tableData = ref<any[]>([]);
 const loading = ref(false);
+const drawerWidth = computed(() => (isMobile.value ? "100%" : "640px"));
 
 // 表头配置
 const getColumns = (): any[] => [
@@ -412,36 +414,17 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.system-variables-container {
-  padding: 20px;
+.table-toolbar {
+  margin-bottom: 20px;
 }
 
-.table-operations {
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
+.table-toolbar__right {
+  margin-left: auto;
 }
 
 .param-help {
-  color: #8c8c8c;
+  color: var(--app-text-faint);
   font-size: 12px;
   line-height: 1.6;
-}
-
-@media (max-width: 768px) {
-  .system-variables-container {
-    padding: 12px;
-  }
-
-  .table-operations {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .left,
-  .right,
-  :deep(.table-operations .ant-btn) {
-    width: 100%;
-  }
 }
 </style>

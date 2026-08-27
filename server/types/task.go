@@ -76,6 +76,7 @@ type AddTaskRequest struct {
 	Name   string   `json:"mission_name" binding:"required"`
 	ParStr TaskData `json:"params" binding:"required"`
 	Cron   string   `json:"cron" binding:"required"`
+	TagIDs []string `json:"tag_ids"`
 }
 
 type GetTaskAllRequest struct {
@@ -85,6 +86,7 @@ type GetTaskAllRequest struct {
 	Status      *int   `form:"status"`
 	Search      string `form:"search"`
 	TaskType    string `form:"tasktypes"`
+	TagID       string `form:"tag_id"`       // 按标签ID筛选, "none" 表示无标签
 }
 
 // UpdateTaskBody 是 PUT /tasks/:id 的请求体；路径中的 id 通过 IDUri 传入
@@ -92,6 +94,7 @@ type UpdateTaskBody struct {
 	Name   string   `json:"mission_name" binding:"required"`
 	ParStr TaskData `json:"params" binding:"required"`
 	Cron   string   `json:"cron" binding:"required"`
+	TagIDs []string `json:"tag_ids"`
 }
 
 // ── 任务执行记录 ────────────────────────────────────────────────────────────────

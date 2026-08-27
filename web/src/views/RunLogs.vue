@@ -1,78 +1,59 @@
 <template>
-  <div>
-  <div class="p-5">
-    <a-card :bordered="false">
-      <div class="runlog-toolbar mb-4">
-        <!-- 左侧搜索条件 -->
-        <a-form
-          layout="inline"
-          class="runlog-search-form"
-          :model="searchForm"
-          @finish="handleSearch"
-        >
-          <a-form-item :label="t('runLog.search.recordId')">
+  <PageContainer>
+    <ContentCard>
+      <div class="section-stack">
+        <div class="table-toolbar">
+          <div class="table-toolbar__right">
+            <div class="auto-refresh-group">
+              <a-switch v-model:checked="autoRefresh" size="small" />
+              <span class="auto-refresh-label">{{ t('runLog.autoRefresh.label') }}</span>
+            </div>
+            <a-button danger @click="openCleanModal">{{ t('runLog.clean.button') }}</a-button>
+          </div>
+        </div>
+
+        <FilterBar>
+          <div class="filter-field runlog-filter">
+            <span class="filter-field__label">{{ t('runLog.search.recordId') }}</span>
             <a-input
               v-model:value="searchForm.id"
               allow-clear
               :placeholder="t('runLog.search.recordId.placeholder')"
-              style="width: 180px"
             />
-          </a-form-item>
-
-          <a-form-item :label="t('runLog.search.missionName')">            <a-input
+          </div>
+          <div class="filter-field runlog-filter runlog-filter--wide">
+            <span class="filter-field__label">{{ t('runLog.search.missionName') }}</span>
+            <a-input
               v-model:value="searchForm.mission_name"
               allow-clear
               :placeholder="t('runLog.search.missionName.placeholder')"
-              style="width: 200px"
             />
-          </a-form-item>
-          <a-form-item :label="t('runLog.search.status')">            <a-select
-              v-model:value="searchForm.status"
-              style="width: 160px"
-              allow-clear
-            >
-              <a-select-option
-                v-for="item in getStatusOptions()"
-                :key="item.value"
-                :value="item.value"
-              >
+          </div>
+          <div class="filter-field runlog-filter">
+            <span class="filter-field__label">{{ t('runLog.search.status') }}</span>
+            <a-select v-model:value="searchForm.status" allow-clear>
+              <a-select-option v-for="item in getStatusOptions()" :key="item.value" :value="item.value">
                 {{ item.label }}
               </a-select-option>
             </a-select>
-          </a-form-item>
-        </a-form>
-
-        <!-- 右侧按钮组 -->
-        <div class="runlog-actions">
-          <div class="auto-refresh-group">
-            <a-switch
-              v-model:checked="autoRefresh"
-              size="small"
-            />
-            <span class="auto-refresh-label">{{ t('runLog.autoRefresh.label') }}</span>
           </div>
-          <div class="runlog-action-buttons">
-            <a-button type="primary" @click="handleSearch" :loading="loading">
+          <div class="filter-field filter-field--actions">
+            <a-button :loading="loading" @click="handleSearch">
               {{ t('runLog.search.query') }}
             </a-button>
-            <a-button @click="resetSearch">
-              {{ t('runLog.search.reset') }}
-            </a-button>
-            <a-button danger @click="openCleanModal">{{ t('runLog.clean.button') }}</a-button>
           </div>
-        </div>
-      </div>
+        </FilterBar>
 
-      <a-table
-        class="mt-5"
-        :columns="getColumns()"
-        :data-source="tableData"
-        :loading="loading"
-        :pagination="pagination"
-        :scroll="{ y: 'calc(100vh - 470px)', x: 'max-content' }"
-        @change="handleTableChange"
-        row-key="id"
-      >
+        <a-table
+          class="app-shell-table"
+          :columns="getColumns()"
+          :data-source="tableData"
+          :loading="loading"
+          :pagination="pagination"
+          :scroll="{ x: 'max-content', y: '100vh' }"
+          @change="handleTableChange"
+          row-key="id"
+        >
         <template #bodyCell="{ column, record }">
           <!-- 状态列渲染为标签 -->
           <template v-if="column.key === 'status'">
@@ -134,8 +115,9 @@
             </a-space>
           </template>
         </template>
-      </a-table>
-    </a-card>
+        </a-table>
+      </div>
+    </ContentCard>
 
     <MissionConfigModal
       v-model:open="paramsModal.show"
@@ -145,7 +127,7 @@
       :data="paramsModal.data"
       :record="paramsModal.record"
     />
-  </div>
+ 
   <a-modal
       v-model:open="taskFilesModal.visible"
       :title="t('runLog.taskFiles.modal.title')"
@@ -253,7 +235,7 @@
       />
     </a-form>
   </a-modal>
-  </div>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -464,15 +446,6 @@ const fetchData = async () => {
 const handleSearch = () => {
   pagination.current = 1;
   fetchData();
-};
-
-// 重置
-const resetSearch = () => {
-  searchForm.mission_name = "";
-  searchForm.status = -1;
-  searchForm.id = "";
-  searchForm.task_id = "";
-  handleSearch();
 };
 
 // 表格分页
@@ -742,24 +715,24 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.runlog-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+.table-toolbar {
+  margin-bottom: -4px;
 }
 
-.runlog-search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.runlog-actions {
+.table-toolbar__right {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-left: auto;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.runlog-filter {
+  width: 190px;
+}
+
+.runlog-filter--wide {
+  width: 260px;
 }
 
 .auto-refresh-group {
@@ -769,15 +742,10 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.runlog-action-buttons {
-  display: flex;
-  gap: 12px;
-}
-
 .auto-refresh-label {
   display: inline-flex;
   align-items: center;
-  color: #6b7280;
+  color: var(--app-text-soft);
   font-size: 14px;
 }
 
@@ -798,35 +766,16 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .p-5 {
-    padding: 12px;
-  }
-
-  .runlog-search-form,
-  .runlog-actions {
-    width: 100%;
-  }
-
-  .runlog-toolbar,
-  .runlog-actions,
-  .runlog-action-buttons {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .auto-refresh-group {
     justify-content: flex-start;
   }
 
-  .runlog-search-form :deep(.ant-form-item),
-  .runlog-actions > * {
-    width: 100%;
+  .runlog-filter {
+    width: 180px;
   }
 
-  .runlog-search-form :deep(.ant-input),
-  .runlog-search-form :deep(.ant-select),
-  .runlog-actions :deep(.ant-btn) {
-    width: 100% !important;
+  .runlog-filter--wide {
+    width: 240px;
   }
 
   .result-cell {

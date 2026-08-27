@@ -19,6 +19,10 @@ database:
 pipeline:
     batchSize: 1000
     channelSize: 10000
+datasourcePool:
+    maxOpenConns: 5
+    maxIdleConns: 2
+    connMaxLifetime: 300
 serverUrl: 0.0.0.0:8080
 runWeb: false
 webUrl: 0.0.0.0:8081
