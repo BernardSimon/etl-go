@@ -53,6 +53,12 @@ func Register(engine *gin.Engine) {
 	v1.DELETE("/variables/:id", AdminAPI(api.DeleteVariable))
 	v1.POST("/variables/:id/test", AdminAPI(api.TestVariable))
 
+	// 标签
+	v1.GET("/tags", AdminAPI(api.GetTagList))
+	v1.POST("/tags", AdminAPI(api.AddTag))
+	v1.PUT("/tags/:id", AdminAPI(api.UpdateTag))
+	v1.DELETE("/tags/:id", AdminAPI(api.DeleteTag))
+
 	// 任务
 	v1.GET("/tasks", AdminAPI(api.GetTaskAll))
 	v1.POST("/tasks", AdminAPI(api.AddTask))

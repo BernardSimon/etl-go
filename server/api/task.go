@@ -28,6 +28,12 @@ func AddTask(_ *struct{}, body *types.AddTaskRequest, _ string) (interface{}, er
 	if err := model.DB.Create(&Mission).Error; err != nil {
 		return nil, errors.New("failed to create task")
 	}
+
+	// 保存标签关联
+	if len(body.TagIDs) > 0 {
+		saveTaskTags(Mission.ID, body.TagIDs)
+	}
+
 	return "success", nil
 }
 
@@ -40,6 +46,9 @@ func DeleteTask(uri *types.IDUri, _ *struct{}, lang string) (interface{}, error)
 	if m.Status == 1 {
 		return false, errors.New("cannot delete in task scheduling")
 	}
+	// 删除标签关联
+	model.DB.Where("task_id = ?", m.ID).Delete(&model.TaskTag{})
+
 	err := model.DB.Model(&model.Task{}).Where("id = ?", m.ID).Delete(&m).Error
 	if err != nil {
 		return false, errors.New("failed to delete task")
@@ -76,6 +85,15 @@ func GetTaskAll(_ *struct{}, query *types.GetTaskAllRequest, _ string) (interfac
 		tx = tx.Where("cron <> ?", "manual")
 	}
 
+	// 按标签筛选
+	if query.TagID == "none" {
+		// 筛选无标签的任务
+		tx = tx.Where("id NOT IN (?)", model.DB.Model(&model.TaskTag{}).Select("task_id"))
+	} else if query.TagID != "" {
+		// 筛选指定标签的任务
+		tx = tx.Where("id IN (?)", model.DB.Model(&model.TaskTag{}).Select("task_id").Where("tag_id = ?", query.TagID))
+	}
+
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, errors.New("failed to get task list")
 	}
@@ -83,8 +101,18 @@ func GetTaskAll(_ *struct{}, query *types.GetTaskAllRequest, _ string) (interfac
 		return nil, errors.New("failed to get task list")
 	}
 
+	// 为每个任务附加标签
+	type taskWithTags struct {
+		model.Task
+		Tags []model.Tag `json:"tags"`
+	}
+	result := make([]taskWithTags, len(missionList))
+	for i, m := range missionList {
+		result[i] = taskWithTags{Task: m, Tags: getTaskTags(m.ID)}
+	}
+
 	return map[string]interface{}{
-		"list":      missionList,
+		"list":      result,
 		"total":     total,
 		"page_no":   pageNo,
 		"page_size": pageSize,
@@ -94,7 +122,34 @@ func GetTaskAll(_ *struct{}, query *types.GetTaskAllRequest, _ string) (interfac
 func GetTaskById(uri *types.IDUri, _ *struct{}, _ string) (interface{}, error) {
 	var m model.Task
 	model.DB.First(&m, uri.Id)
-	return m, nil
+	type taskWithTags struct {
+		model.Task
+		Tags []model.Tag `json:"tags"`
+	}
+	return taskWithTags{Task: m, Tags: getTaskTags(m.ID)}, nil
+}
+
+// saveTaskTags 保存任务与标签的关联关系
+func saveTaskTags(taskID string, tagIDs []string) {
+	// 先删除旧关联
+	model.DB.Where("task_id = ?", taskID).Delete(&model.TaskTag{})
+	// 创建新关联
+	for _, tagID := range tagIDs {
+		model.DB.Create(&model.TaskTag{TaskID: taskID, TagID: tagID})
+	}
+}
+
+// getTaskTags 获取任务的标签列表
+func getTaskTags(taskID string) []model.Tag {
+	var taskTags []model.TaskTag
+	model.DB.Where("task_id = ?", taskID).Preload("Tag").Find(&taskTags)
+	tags := make([]model.Tag, 0, len(taskTags))
+	for _, tt := range taskTags {
+		if tt.Tag.ID != "" {
+			tags = append(tags, tt.Tag)
+		}
+	}
+	return tags
 }
 
 func UpdateTask(uri *types.IDUri, body *types.UpdateTaskBody, lang string) (interface{}, error) {
@@ -118,6 +173,10 @@ func UpdateTask(uri *types.IDUri, body *types.UpdateTaskBody, lang string) (inte
 	if err := model.DB.Save(&m).Error; err != nil {
 		return nil, errors.New("failed to edit task")
 	}
+
+	// 更新标签关联
+	saveTaskTags(m.ID, body.TagIDs)
+
 	return i18n.Translate(lang, "success"), nil
 }
 

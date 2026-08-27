@@ -52,6 +52,19 @@
               <div v-if="showCronField" class="section-example">
                 {{ t('missionConfig.cron.example') }}
               </div>
+
+              <a-form-item :label="t('missionConfig.tags.label')">
+                <a-select
+                    v-model:value="formData.tag_ids"
+                    mode="multiple"
+                    :placeholder="t('missionConfig.tags.placeholder')"
+                    allow-clear
+                    :show-search="false"
+                    :disabled="mode === 'read'"
+                    style="width: 100%"
+                    :options="tagOptions"
+                />
+              </a-form-item>
             </a-collapse-panel>
 
             <a-collapse-panel key="before" :header="t('missionConfig.beforeTask.title')">
@@ -781,6 +794,8 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
 import { addTask, updateTask, getTypeByComponent, saveTaskTemplate } from "../api/mission";
+import { getTagList } from "../api/tag";
+import type { Tag } from "../api/tag";
 import type { ConfigItem, TaskType, ParamItem } from "../types/mission";
 import { useI18n } from "vue-i18n";
 import { getFileList } from "../api/file.ts";
@@ -860,6 +875,7 @@ const formData = reactive({
   id: "",
   mission_name: "",
   cron: props.taskType === 'manual' ? 'manual' : "",
+  tag_ids: [] as string[],
   before_execute: createEmptyConfig(),
   source: createEmptyConfig(),
   processors: [] as ConfigItem[],
@@ -867,10 +883,29 @@ const formData = reactive({
   after_execute: createEmptyConfig(),
 });
 
+// 标签相关
+const allTags = ref<Tag[]>([]);
+
+const tagOptions = computed(() =>
+  allTags.value.map(tag => ({ label: tag.name, value: tag.id }))
+);
+
+const fetchTags = async () => {
+  try {
+    const res = await getTagList();
+    if (res.code === 0) {
+      allTags.value = res.data || [];
+    }
+  } catch {
+    // ignore
+  }
+};
+
 const buildTaskPayload = (includeId = props.mode === "edit") => {
   const payload: Record<string, any> = {
     mission_name: formData.mission_name,
     cron: formData.cron,
+    tag_ids: formData.tag_ids,
     params: {
       before_execute: formData.before_execute.type ? formData.before_execute : null,
       source: formData.source.type ? formData.source : null,
@@ -1002,12 +1037,16 @@ const initForm = async () => {
       };
     }
 
+    // 加载标签列表
+    await fetchTags();
+
     // 根据模式初始化数据
     if (!props.data) {
       Object.assign(formData, {
         id: "",
         mission_name: "",
         cron: props.taskType === 'manual' ? 'manual' : "",
+        tag_ids: [],
         before_execute: createEmptyConfig(),
         source: createEmptyConfig(),
         processors: [],
@@ -1028,6 +1067,9 @@ const initForm = async () => {
 
     const isManualTask = props.taskType === "manual" || record.cron === 'manual';
     formData.cron = isManualTask ? 'manual' : (record.cron || "");
+
+    // 加载已有标签
+    formData.tag_ids = (record.tags || []).map((t: any) => t.id);
 
     resetConfigItem(formData.before_execute, data.before_execute, "execute");
     resetConfigItem(formData.source, data.source, "source");

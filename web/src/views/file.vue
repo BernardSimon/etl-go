@@ -36,7 +36,7 @@
           :data-source="fileList"
           :loading="loading"
           :pagination="pagination"
-          :scroll="{ x: 'max-content' }"
+          :scroll="{ x: 'max-content', y: '100vh' }"
           @change="handleTableChange"
           row-key="id"
         >

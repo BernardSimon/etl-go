@@ -20,7 +20,7 @@
         :data-source="tableData"
         row-key="id"
         :loading="loading"
-        :scroll="{ x: 'max-content' }"
+        :scroll="{ x: 'max-content', y: '100vh' }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'type'">

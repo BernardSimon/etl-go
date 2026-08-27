@@ -50,7 +50,7 @@
           :data-source="filteredTableData"
           row-key="id"
           :loading="loading"
-          :scroll="{ x: 'max-content' }"
+          :scroll="{ x: 'max-content', y: '100vh' }"
           :locale="{ emptyText: loadError ? t('common.loadFailed') : t('common.empty') }"
         >
           <template #bodyCell="{ column, record }">
